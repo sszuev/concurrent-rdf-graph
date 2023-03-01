@@ -1,5 +1,9 @@
 package com.github.sszuev.graphs
 
+import com.github.sszuev.graphs.testutils.Barrier
+import com.github.sszuev.graphs.testutils.CoroutineBarrier
+import com.github.sszuev.graphs.testutils.ThreadBarrier
+import com.github.sszuev.graphs.testutils.assertSafe
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
@@ -23,12 +27,12 @@ internal fun testJavaMultiThreadGraphModification(
     limitOfIterations: Int,
     executorService: ExecutorService = Executors.newFixedThreadPool(nThreads)
 ) {
-    testGraphModification(graph, nThreads, limitOfIterations, { ThreadBarrier(it) }) {
-        val tasks = executorService.invokeAll(it)
+    testGraphModification(graph, nThreads, limitOfIterations, { ThreadBarrier(it) }) { tasks ->
+        val futures = executorService.invokeAll(tasks)
         executorService.shutdown()
         executorService.awaitTermination(timeoutInMills, TimeUnit.MILLISECONDS)
-        tasks.forEach {
-            assertFail {
+        futures.forEach {
+            assertSafe {
                 it.get()
             }
         }
@@ -41,10 +45,10 @@ internal fun testKotlinMultiCoroutinesGraphModification(
     limitOfIterations: Int,
     coroutineDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
-    testGraphModification(graph, nCoroutines, limitOfIterations, { CoroutineBarrier(it) }) { task ->
+    testGraphModification(graph, nCoroutines, limitOfIterations, { CoroutineBarrier(it) }) { tasks ->
         runBlocking(coroutineDispatcher) {
             withTimeout(timeoutInMills) {
-                val jobs = task.map {
+                val jobs = tasks.map {
                     launch { it.call() }
                 }
                 jobs.joinAll()

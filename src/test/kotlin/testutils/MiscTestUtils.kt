@@ -1,4 +1,4 @@
-package com.github.sszuev.graphs
+package com.github.sszuev.graphs.testutils
 
 import org.apache.jena.graph.Graph
 import org.apache.jena.rdf.model.ModelFactory
@@ -11,7 +11,7 @@ import java.util.stream.Stream
 internal fun <X> Stream<X>.toSet(): Set<X> = this.collect(Collectors.toSet())
 
 internal fun loadGraph(resource: String, lang: Lang? = Lang.TURTLE): Graph {
-    checkNotNull(Class.forName("com.github.sszuev.graphs.TestUtilsKt").getResourceAsStream(resource)).use {
+    checkNotNull(Class.forName("com.github.sszuev.graphs.testutils.MiscTestUtilsKt").getResourceAsStream(resource)).use {
         val foundLang = lang ?: RDFDataMgr.determineLang(resource, null, null)
         val res = ModelFactory.createDefaultModel()
         RDFDataMgr.read(res, it, foundLang)

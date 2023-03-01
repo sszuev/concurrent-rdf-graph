@@ -1,6 +1,6 @@
 package com.github.sszuev.graphs
 
-import org.apache.jena.graph.Graph
+import com.github.sszuev.graphs.testutils.loadGraph
 import org.apache.jena.sparql.graph.GraphFactory
 import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.params.ParameterizedTest
@@ -8,15 +8,6 @@ import org.junit.jupiter.params.provider.EnumSource
 
 
 internal class ConcurrentGraphTest {
-
-    @Suppress("unused")
-    enum class TestGraphFactory {
-        SYNCHRONIZED_GRAPH {
-            override fun create(graph: Graph): Graph = SynchronizedGraph(graph)
-        };
-
-        abstract fun create(graph: Graph): Graph
-    }
 
     @Timeout(timeoutInMills)
     @ParameterizedTest

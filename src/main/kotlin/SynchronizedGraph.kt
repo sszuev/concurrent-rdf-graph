@@ -38,7 +38,7 @@ class SynchronizedGraph(graph: Graph) : GraphWrapper(graph), Graph {
     override fun clear() = get().clear()
 
     @Synchronized
-    override fun find(triple: Triple?): ExtendedIterator<Triple> =
+    override fun find(triple: Triple): ExtendedIterator<Triple> =
         WrappedIterator.create(get().find(triple).toList().iterator())
 
     @Synchronized
@@ -89,13 +89,13 @@ class SynchronizedGraph(graph: Graph) : GraphWrapper(graph), Graph {
     override fun getEventManager(): GraphEventManager = get().eventManager
 
     @Synchronized
-    override fun getPrefixMapping(): PrefixMapping = SynchronizedPrefixMapping(this, get().prefixMapping)
+    override fun getPrefixMapping(): PrefixMapping = SynchronizedPrefixMapping(get().prefixMapping, this)
 }
 
 /**
  * Synchronized [PrefixMapping].
  */
-class SynchronizedPrefixMapping(private val lock: Any, private val pm: PrefixMapping) : PrefixMapping {
+class SynchronizedPrefixMapping(private val pm: PrefixMapping, private val lock: Any) : PrefixMapping {
     override fun setNsPrefix(prefix: String, uri: String): PrefixMapping =
         synchronized(lock) { also { pm.setNsPrefix(prefix, uri) } }
 

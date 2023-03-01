@@ -1,9 +1,13 @@
 package com.github.sszuev.graphs
 
+import com.github.sszuev.graphs.testutils.assertEquals
+import com.github.sszuev.graphs.testutils.assertFalse
+import com.github.sszuev.graphs.testutils.assertSingle
+import com.github.sszuev.graphs.testutils.assertTrue
+import com.github.sszuev.graphs.testutils.toSet
 import org.apache.jena.graph.Graph
 import org.apache.jena.graph.NodeFactory
 import org.apache.jena.graph.Triple
-import org.junit.jupiter.api.Assertions
 import java.util.UUID
 import kotlin.streams.toList
 
@@ -46,19 +50,19 @@ internal fun testFindAll(
     minSize: Int,
     maxSize: Int,
 ) {
-    Assertions.assertTrue(graph.size() in minSize..maxSize) {
-        "actual graph size: ${graph.size()}, bounds = [$maxSize .. $maxSize]"
+    assertTrue(graph.size() in minSize..maxSize) {
+        "actual graph size: ${graph.size()}, bounds = [$maxSize .. $maxSize]; THREAD::[${Thread.currentThread().id}]"
     }
     val findAll = graph.find().toList()
-    Assertions.assertTrue(findAll.size in minSize..maxSize) {
-        "findAllCount ${findAll.size}, bounds = [$maxSize .. $maxSize]"
+    assertTrue(findAll.size in minSize..maxSize) {
+        "findAllCount ${findAll.size}, bounds = [$maxSize .. $maxSize]; THREAD::[${Thread.currentThread().id}]"
     }
     val streamAll = graph.stream().toSet()
-    Assertions.assertTrue(streamAll.size in minSize..maxSize) {
-        "streamAllCount ${streamAll.size}, bounds = [$maxSize .. $maxSize]"
+    assertTrue(streamAll.size in minSize..maxSize) {
+        "streamAllCount ${streamAll.size}, bounds = [$maxSize .. $maxSize]; THREAD::[${Thread.currentThread().id}]"
     }
     if (minSize > 0) {
-        Assertions.assertFalse(graph.isEmpty)
+        assertFalse(graph.isEmpty)
     }
 }
 
@@ -67,49 +71,62 @@ internal fun testFindSome(
     expected: List<Triple>,
 ) {
     val t1 = createRandom()
-    Assertions.assertFalse(actual.contains(t1))
+    assertFalse(actual.contains(t1))
     if (expected.isEmpty()) {
         return
     }
 
     val t2 = expected.random()
-    Assertions.assertTrue(actual.contains(t2))
+    assertTrue(actual.contains(t2))
 
     val t3 =
         Triple.create(NodeFactory.createBlankNode(), expected.random().predicate, expected.random().`object`)
-    Assertions.assertFalse(actual.contains(t3))
+    assertFalse(actual.contains(t3))
 
     val t4 = expected.random()
-    assertFail { actual.find(t4).asSequence().single() }
+    actual.find(t4).asSequence().assertSingle()
+    //assertSafe { actual.find(t4).asSequence().single() }
 
     val t5 = expected.random()
-    Assertions.assertEquals(listOf(t5), actual.find(t5.subject, t5.predicate, t5.`object`).toList())
+    assertEquals(
+        listOf(t5),
+        actual.find(t5.subject, t5.predicate, t5.`object`).toList()
+    )
 
     val t6 = expected.random()
     val s6 = t6.subject
     val p6 = t6.predicate
-    Assertions.assertEquals(expected.filter { p6 == it.predicate }.toSet(), actual.find(null, p6, null).toSet())
-    Assertions.assertEquals(expected.filter { s6 == it.subject }.toSet(), actual.find(s6, null, null).toSet())
-    Assertions.assertEquals(
+    assertEquals(
+        expected.filter { p6 == it.predicate }.toSet(),
+        actual.find(null, p6, null).toSet()
+    )
+    assertEquals(
+        expected.filter { s6 == it.subject }.toSet(),
+        actual.find(s6, null, null).toSet()
+    )
+    assertEquals(
         expected.filter { s6 == it.subject && p6 == it.predicate }.toSet(),
         actual.find(s6, p6, null).toSet()
     )
 
     val t7 = expected.random()
-    Assertions.assertEquals(listOf(t7), actual.stream(t7.subject, t7.predicate, t7.`object`).toList())
+    assertEquals(
+        listOf(t7),
+        actual.stream(t7.subject, t7.predicate, t7.`object`).toList()
+    )
 
     val t8 = expected.random()
     val p8 = t8.predicate
     val o8 = t8.`object`
-    Assertions.assertEquals(
+    assertEquals(
         expected.filter { p8 == it.predicate }.toSet(),
         actual.stream(null, p8, null).toSet()
     )
-    Assertions.assertEquals(
+    assertEquals(
         expected.filter { o8 == it.`object` }.toSet(),
         actual.find(null, null, o8).toSet()
     )
-    Assertions.assertEquals(
+    assertEquals(
         expected.filter { p8 == it.predicate && o8 == it.`object` }.toSet(),
         actual.find(null, p8, o8).toSet()
     )
@@ -128,12 +145,3 @@ internal fun createRandomUri(): String {
     return ns + UUID.randomUUID()
 }
 
-internal fun assertFail(block: () -> Unit) {
-    try {
-        block()
-    } catch (ex: AssertionError) {
-        throw ex
-    } catch (ex: Exception) {
-        Assertions.fail<Unit>(ex)
-    }
-}

@@ -1,4 +1,4 @@
-package com.github.sszuev.graphs
+package com.github.sszuev.graphs.testutils
 
 internal interface Barrier {
     fun await()

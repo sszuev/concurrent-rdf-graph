@@ -1,14 +1,17 @@
 package com.github.sszuev.graphs
 
+import com.github.sszuev.graphs.testutils.loadGraph
 import org.apache.jena.sparql.graph.GraphFactory
-import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 
 internal class SingleThreadGraphTest {
 
-    @Test
-    fun `test empty GraphMem (acceptance test)`() {
+    @ParameterizedTest
+    @EnumSource(TestGraphFactory::class)
+    fun `test empty GraphMem (acceptance test)`(factory: TestGraphFactory) {
         testModifyAndRead(
-            graph = GraphFactory.createGraphMem(),
+            graph = factory.create(GraphFactory.createGraphMem()),
             expected = emptyList(),
             minSize = 0,
             maxSize = 42,
@@ -17,13 +20,14 @@ internal class SingleThreadGraphTest {
         )
     }
 
-    @Test
-    fun `test non-empty GraphMem (acceptance test)`() {
+    @ParameterizedTest
+    @EnumSource(TestGraphFactory::class)
+    fun `test non-empty GraphMem (acceptance test)`(factory: TestGraphFactory) {
         val graph = loadGraph("/pizza.ttl")
         val min = graph.size()
         testModifyAndRead(
-            graph = graph,
-            expected = emptyList(),
+            graph = factory.create(graph),
+            expected = graph.find().toList(),
             minSize = min,
             maxSize = min + 42,
             numTriplesToCreate = 42,
