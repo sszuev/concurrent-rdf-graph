@@ -31,13 +31,17 @@ import kotlin.concurrent.withLock
  * and components [TransactionHandler], [Capabilities], [GraphEventManager] are not thread-safe.
  * Complex operation like [org.apache.jena.rdf.model.Model.write] are not thread-safe as well.
  */
-class LockedGraph(
+class LockingGraph(
     graph: Graph,
     private val readLock: Lock,
     private val writeLock: Lock,
 ) : GraphWrapper(graph), Graph {
 
-    constructor(graph: Graph, lock: ReadWriteLock) : this(graph, lock.readLock(), lock.writeLock())
+    constructor(graph: Graph, lock: ReadWriteLock) : this(
+        graph = graph,
+        readLock = lock.readLock(),
+        writeLock = lock.writeLock()
+    )
 
     private val openIterators: MutableMap<String, OuterTriplesIterator> = ConcurrentHashMap()
 
@@ -87,7 +91,7 @@ class LockedGraph(
 
     override fun getEventManager(): GraphEventManager = get().eventManager
 
-    override fun getPrefixMapping(): PrefixMapping = LockedPrefixMapping(get().prefixMapping, readLock, writeLock)
+    override fun getPrefixMapping(): PrefixMapping = LockingPrefixMapping(get().prefixMapping, readLock, writeLock)
 
     private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
         openIterators.keys.forEach { releaseToSnapshot(it) }
@@ -124,7 +128,7 @@ class LockedGraph(
 
 /**
  * A wrapper for base graph iterator.
- * Has a reference to the graph through [onClose] operation (see [LockedGraph.releaseToNull]).
+ * Has a reference to the graph through [onClose] operation (see [LockingGraph.releaseToNull]).
  */
 private class InnerTriplesIterator(
     val base: ExtendedIterator<Triple>,
@@ -158,7 +162,7 @@ private class InnerTriplesIterator(
 /**
  * An [ExtendedIterator] wrapper for triples that allows to substitute the base iterator.
  * Synchronized by [Lock].
- * Has no reference to the graph when it is released (see [LockedGraph.releaseToSnapshot])
+ * Has no reference to the graph when it is released (see [LockingGraph.releaseToSnapshot])
  */
 private class OuterTriplesIterator(
     var base: Iterator<Triple>,
@@ -187,7 +191,7 @@ private class OuterTriplesIterator(
     }
 }
 
-class LockedPrefixMapping(
+class LockingPrefixMapping(
     private val pm: PrefixMapping,
     private val readLock: Lock,
     private val writeLock: Lock,

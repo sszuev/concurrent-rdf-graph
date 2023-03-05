@@ -1,5 +1,7 @@
 package com.github.sszuev.graphs
 
+import com.github.sszuev.graphs.scenarious.ReadOperationsTestData
+import com.github.sszuev.graphs.scenarious.testModifyAndRead
 import com.github.sszuev.graphs.testutils.loadGraph
 import org.apache.jena.sparql.graph.GraphFactory
 import org.junit.jupiter.params.ParameterizedTest
@@ -12,7 +14,7 @@ internal class SingleThreadGraphTest {
     fun `test empty GraphMem (acceptance test)`(factory: TestGraphFactory) {
         testModifyAndRead(
             graph = factory.create(GraphFactory.createGraphMem()),
-            expected = emptyList(),
+            getTestData = { ReadOperationsTestData(emptyList()) },
             minSize = 0,
             maxSize = 42,
             numTriplesToCreate = 42,
@@ -27,7 +29,7 @@ internal class SingleThreadGraphTest {
         val min = graph.size()
         testModifyAndRead(
             graph = factory.create(graph),
-            expected = graph.find().toList(),
+            getTestData = { ReadOperationsTestData(graph) },
             minSize = min,
             maxSize = min + 42,
             numTriplesToCreate = 42,

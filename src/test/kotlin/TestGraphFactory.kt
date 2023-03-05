@@ -9,7 +9,7 @@ internal enum class TestGraphFactory {
         override fun create(graph: Graph): Graph = SynchronizedGraph(graph)
     },
     RW_LOCKED_GRAPH {
-        override fun create(graph: Graph): Graph = LockedGraph(graph, ReentrantReadWriteLock())
+        override fun create(graph: Graph): Graph = LockingGraph(graph, ReentrantReadWriteLock())
     };
 
     abstract fun create(graph: Graph): Graph
