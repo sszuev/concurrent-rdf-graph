@@ -13,14 +13,13 @@ import org.apache.jena.sparql.graph.GraphWrapper
 import org.apache.jena.util.iterator.ExtendedIterator
 import org.apache.jena.util.iterator.NiceIterator
 import org.apache.jena.util.iterator.WrappedIterator
-import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReadWriteLock
-import java.util.function.Consumer
+import java.util.concurrent.locks.ReentrantLock
 import java.util.stream.Stream
 import kotlin.concurrent.withLock
 
@@ -98,26 +97,27 @@ class LockingGraph(
         action()
     }
 
-    private inline fun <X> read(action: () -> X): X = readLock.withLock { action() }
+    private inline fun <X> read(action: () -> X): X = readLock.withLock(action)
 
     private fun ExtendedIterator<Triple>.remember(): ExtendedIterator<Triple> {
         val id = UUID.randomUUID().toString()
         val res = OuterTriplesIterator(
             InnerTriplesIterator(base = this) { releaseToNull(id) },
-            readLock,
+            ReentrantLock(),
         )
         openIterators[id] = res
         return res
     }
 
-    private fun releaseToSnapshot(id: String) {
-        openIterators.remove(id)?.let { wrapper ->
+    private fun releaseToSnapshot(id: String) = openIterators.remove(id)?.let { wrapper ->
+        wrapper.lock.withLock {
             val inner = wrapper.base as InnerTriplesIterator
             val rest = inner.collect { mutableListOf() }
             wrapper.base = rest.iterator()
             wrapper.lock = NoOpLock
         }
     }
+
 
     private fun releaseToNull(id: String) = openIterators.remove(id)?.let { wrapper ->
         wrapper.base = WrappedIterator.emptyIterator()
@@ -174,21 +174,6 @@ private class OuterTriplesIterator(
     override fun next(): Triple = lock.withLock { base.next() }
 
     override fun close() = lock.withLock { close(base) }
-
-    override fun toList(): List<Triple> = lock.withLock { collect { mutableListOf() } }
-
-    override fun toSet(): Set<Triple> = lock.withLock { collect { mutableSetOf() } }
-
-    override fun nextOptional(): Optional<Triple> =
-        lock.withLock { if (hasNext()) Optional.of(next()) else Optional.empty() }
-
-    override fun forEach(action: Consumer<Triple>) = forEachRemaining(action)
-
-    override fun forEachRemaining(action: Consumer<in Triple>) = lock.withLock {
-        while (base.hasNext()) {
-            action.accept(base.next())
-        }
-    }
 }
 
 class LockingPrefixMapping(
