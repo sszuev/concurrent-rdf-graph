@@ -118,7 +118,6 @@ class ReadWriteLockingGraph(
         }
     }
 
-
     private fun releaseToNull(id: String) = openIterators.remove(id)?.let { wrapper ->
         wrapper.base = WrappedIterator.emptyIterator()
         wrapper.lock = NoOpLock

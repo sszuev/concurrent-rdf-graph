@@ -19,77 +19,67 @@ import java.util.stream.Stream
  *
  * Complex operation like [org.apache.jena.rdf.model.Model.write] are not thread-safe.
  */
-class SynchronizedGraph(graph: Graph) : GraphWrapper(graph), Graph {
+class SynchronizedGraph(graph: Graph, lock: Any? = null) : GraphWrapper(graph), Graph {
 
-    @Synchronized
+    private val lock: Any
+
+    init {
+        this.lock = lock ?: this
+    }
+
     @Throws(AddDeniedException::class)
-    override fun add(triple: Triple) = get().add(triple)
+    override fun add(triple: Triple) = synchronized(lock) { get().add(triple) }
 
-    @Synchronized
     @Throws(DeleteDeniedException::class)
-    override fun delete(triple: Triple) = get().delete(triple)
+    override fun delete(triple: Triple) = synchronized(lock) { get().delete(triple) }
 
-    @Synchronized
     @Throws(DeleteDeniedException::class)
-    override fun remove(s: Node?, p: Node?, o: Node?) = get().remove(s, p, o)
+    override fun remove(s: Node?, p: Node?, o: Node?) = synchronized(lock) { get().remove(s, p, o) }
 
-    @Synchronized
     @Throws(DeleteDeniedException::class)
-    override fun clear() = get().clear()
+    override fun clear() = synchronized(lock) { get().clear() }
 
-    @Synchronized
-    override fun find(triple: Triple): ExtendedIterator<Triple> =
+    override fun find(triple: Triple): ExtendedIterator<Triple> = synchronized(lock) {
         WrappedIterator.create(get().find(triple).toList().iterator())
+    }
 
-    @Synchronized
-    override fun find(s: Node?, p: Node?, o: Node?): ExtendedIterator<Triple> =
+    override fun find(s: Node?, p: Node?, o: Node?): ExtendedIterator<Triple> = synchronized(lock) {
         WrappedIterator.create(get().find(s, p, o).toList().iterator())
+    }
 
-    @Synchronized
-    override fun find(): ExtendedIterator<Triple> = WrappedIterator.create(get().find().toList().iterator())
+    override fun find(): ExtendedIterator<Triple> = synchronized(lock) {
+        WrappedIterator.create(get().find().toList().iterator())
+    }
 
-    @Synchronized
-    override fun stream(s: Node?, p: Node?, o: Node?): Stream<Triple> =
+    override fun stream(s: Node?, p: Node?, o: Node?): Stream<Triple> = synchronized(lock) {
         get().stream(s, p, o).collect(Collectors.toList()).stream()
+    }
 
-    @Synchronized
-    override fun stream(): Stream<Triple> = get().stream().collect(Collectors.toList()).stream()
+    override fun stream(): Stream<Triple> = synchronized(lock) { get().stream().collect(Collectors.toList()).stream() }
 
-    @Synchronized
-    override fun contains(s: Node?, p: Node?, o: Node?): Boolean = get().contains(s, p, o)
+    override fun contains(s: Node?, p: Node?, o: Node?): Boolean = synchronized(lock) { get().contains(s, p, o) }
 
-    @Synchronized
-    override fun contains(t: Triple): Boolean = get().contains(t)
+    override fun contains(t: Triple): Boolean = synchronized(lock) { get().contains(t) }
 
-    @Synchronized
-    override fun close() = get().close()
+    override fun close() = synchronized(lock) { get().close() }
 
-    @Synchronized
-    override fun isClosed(): Boolean = get().isClosed
+    override fun isClosed(): Boolean = synchronized(lock) { get().isClosed }
 
-    @Synchronized
-    override fun isIsomorphicWith(g: Graph?): Boolean = get().isIsomorphicWith(g)
+    override fun isIsomorphicWith(g: Graph?): Boolean = synchronized(lock) { get().isIsomorphicWith(g) }
 
-    @Synchronized
-    override fun isEmpty(): Boolean = get().isEmpty
+    override fun isEmpty(): Boolean = synchronized(lock) { get().isEmpty }
 
-    @Synchronized
-    override fun size(): Int = get().size()
+    override fun size(): Int = synchronized(lock) { get().size() }
 
-    @Synchronized
-    override fun dependsOn(other: Graph): Boolean = get().dependsOn(other)
+    override fun dependsOn(other: Graph): Boolean = synchronized(lock) { get().dependsOn(other) }
 
-    @Synchronized
-    override fun getTransactionHandler(): TransactionHandler = get().transactionHandler
+    override fun getTransactionHandler(): TransactionHandler = synchronized(lock) { get().transactionHandler }
 
-    @Synchronized
-    override fun getCapabilities(): Capabilities = get().capabilities
+    override fun getCapabilities(): Capabilities = synchronized(lock) { get().capabilities }
 
-    @Synchronized
-    override fun getEventManager(): GraphEventManager = get().eventManager
+    override fun getEventManager(): GraphEventManager = synchronized(lock) { get().eventManager }
 
-    @Synchronized
-    override fun getPrefixMapping(): PrefixMapping = SynchronizedPrefixMapping(get().prefixMapping, this)
+    override fun getPrefixMapping(): PrefixMapping = SynchronizedPrefixMapping(get().prefixMapping, lock)
 }
 
 /**
