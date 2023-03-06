@@ -30,7 +30,7 @@ import kotlin.concurrent.withLock
  * and components [TransactionHandler], [Capabilities], [GraphEventManager] are not thread-safe.
  * Complex operation like [org.apache.jena.rdf.model.Model.write] are not thread-safe as well.
  */
-class LockingGraph(
+class ReadWriteLockingGraph(
     graph: Graph,
     private val readLock: Lock,
     private val writeLock: Lock,
@@ -128,7 +128,7 @@ class LockingGraph(
 
 /**
  * A wrapper for base graph iterator.
- * Has a reference to the graph through [onClose] operation (see [LockingGraph.releaseToNull]).
+ * Has a reference to the graph through [onClose] operation (see [ReadWriteLockingGraph.releaseToNull]).
  */
 private class InnerTriplesIterator(
     val base: ExtendedIterator<Triple>,
@@ -162,7 +162,7 @@ private class InnerTriplesIterator(
 /**
  * An [ExtendedIterator] wrapper for triples that allows to substitute the base iterator.
  * Synchronized by [Lock].
- * Has no reference to the graph when it is released (see [LockingGraph.releaseToSnapshot])
+ * Has no reference to the graph when it is released (see [ReadWriteLockingGraph.releaseToSnapshot])
  */
 private class OuterTriplesIterator(
     var base: Iterator<Triple>,
