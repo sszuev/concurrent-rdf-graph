@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.github.sszuev"
-version = "1.0.0-SNAPSHOT"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -86,6 +86,10 @@ signing {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.getByName("signMavenPublication") {
+    enabled = project.hasProperty("sign")
 }
 
 kotlin {
