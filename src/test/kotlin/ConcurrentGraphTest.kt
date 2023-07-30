@@ -17,7 +17,7 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @Test
-    fun `test rw-operations for non thread-safe graph, negative acceptance test`() {
+    fun `test rw-operations for non thread-safe graph-mem, negative acceptance test`() {
         // to be sure we have working tests
         val empty = GraphFactory.createGraphMem()
         assertThrows(Exception::class.java, AssertionError::class.java) {
@@ -27,7 +27,7 @@ internal class ConcurrentGraphTest {
                 limitOfIterations = 420,
             )
         }
-        val nonEmpty = loadGraph("/pizza.ttl")
+        val nonEmpty = loadGraph("/pizza.ttl", { GraphFactory.createGraphMem() })
         assertThrows(Exception::class.java, AssertionError::class.java) {
             testJavaMultiThreadEveryTaskModifications(
                 graph = nonEmpty,
@@ -39,9 +39,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read many write for empty graph in multithreading`(factory: TestGraphFactory) {
-        val g = factory.create(GraphFactory.createGraphMem())
+        val g = factory.create()
         testJavaMultiThreadEveryTaskModifications(
             graph = g,
             nTasks = 210,
@@ -51,9 +51,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read many write for empty graph in coroutines`(factory: TestGraphFactory) {
-        val g = factory.create(GraphFactory.createGraphMem())
+        val g = factory.create()
         testKotlinMultiCoroutineEveryTaskModification(
             graph = g,
             nTasks = 210,
@@ -63,9 +63,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read many write for non-empty graph in multithreading`(factory: TestGraphFactory) {
-        val g = factory.create(loadGraph("/pizza.ttl"))
+        val g = factory.load("/pizza.ttl")
         testJavaMultiThreadEveryTaskModifications(
             graph = g,
             nTasks = 126,
@@ -75,9 +75,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read many write for non-empty graph in coroutines`(factory: TestGraphFactory) {
-        val g = factory.create(loadGraph("/pizza.ttl"))
+        val g = factory.load("/pizza.ttl")
         testKotlinMultiCoroutineEveryTaskModification(
             graph = g,
             nTasks = 126,
@@ -87,9 +87,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read one write for empty graph in multithreading`(factory: TestGraphFactory) {
-        val g = factory.create(GraphFactory.createGraphMem())
+        val g = factory.create()
         testJavaMultiThreadSeparateReadWrite(
             graph = g,
             nReadThreads = 10,
@@ -100,9 +100,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read one write for non-empty graph in multithreading`(factory: TestGraphFactory) {
-        val g = factory.create(loadGraph("/pizza.ttl"))
+        val g = factory.load("/pizza.ttl")
         testJavaMultiThreadSeparateReadWrite(
             graph = g,
             nReadThreads = 10,
@@ -113,9 +113,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read few write for empty graph in multithreading`(factory: TestGraphFactory) {
-        val g = factory.create(GraphFactory.createGraphMem())
+        val g = factory.create()
         testJavaMultiThreadSeparateReadWrite(
             graph = g,
             nReadThreads = 17,
@@ -126,9 +126,9 @@ internal class ConcurrentGraphTest {
 
     @Timeout(timeoutInMills)
     @ParameterizedTest
-    @EnumSource(TestGraphFactory::class)
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
     fun `test many read few write for non-empty graph in multithreading`(factory: TestGraphFactory) {
-        val g = factory.create(loadGraph("/pizza.ttl"))
+        val g = factory.load("/pizza.ttl")
         testJavaMultiThreadSeparateReadWrite(
             graph = g,
             nReadThreads = 18,

@@ -16,12 +16,12 @@ internal const val ns = "https://test.ex.com#"
 
 internal fun <X> Stream<X>.toSet(): Set<X> = this.collect(Collectors.toSet())
 
-internal fun loadGraph(resource: String, lang: Lang? = Lang.TURTLE): Graph {
+internal fun loadGraph(resource: String, factory: () -> Graph, lang: Lang? = Lang.TURTLE): Graph {
     checkNotNull(
         Class.forName("com.github.sszuev.graphs.testutils.MiscTestUtilsKt").getResourceAsStream(resource)
     ).use {
         val foundLang = lang ?: RDFDataMgr.determineLang(resource, null, null)
-        val res = ModelFactory.createDefaultModel()
+        val res = ModelFactory.createModelForGraph(factory())
         RDFDataMgr.read(res, it, foundLang)
         return res.graph
     }
