@@ -11,3 +11,25 @@ Contains two implementations:
 Each implementation is an instance of `org.apache.jena.sparql.graph.GraphWrapper` from [Apache Jena](https://github.com/apache/jena) project.
 
 In general, the RW-locking graph implementation is faster and less memory-demanding.
+
+## Available via [jitpack](https://jitpack.io/#sszuev/concurrent-rdf-graph)
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+...
+<dependency>
+    <groupId>com.github.sszuev</groupId>
+    <artifactId>concurrent-rdf-graph</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+
+## License
+
+Apache License Version 2.0

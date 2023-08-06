@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.github.sszuev"
-version = "1.0.0"
+version = "1.0.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -42,10 +42,6 @@ publishing {
                     license {
                         name.set("The Apache License, Version 2.0")
                         url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                    license {
-                        name.set("GNU LGPL Version 3.0")
-                        url.set("http://www.gnu.org/licenses/lgpl.txt")
                     }
                 }
                 scm {
