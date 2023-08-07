@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm")
     id("maven-publish")
+    id("me.champeau.jmh")
     signing
 }
 
@@ -22,8 +23,9 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
     testImplementation("org.junit.jupiter:junit-jupiter-params:$junitVersion")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitVersion")
+    jmh("org.openjdk.jmh:jmh-core:1.36")
+    jmh("org.openjdk.jmh:jmh-generator-annprocess:1.36")
 }
-
 
 publishing {
     publications {

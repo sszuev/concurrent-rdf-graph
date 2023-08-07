@@ -29,6 +29,16 @@ In general, the RW-locking graph implementation is faster and less memory-demand
 </dependency>
 ```
 
+## Run benchmarks
+```bash
+gradlew clean jmh
+```
+or 
+```bash
+gradlew clean jmhJar
+java -jar build/libs/concurrent-rdf-graph-kotlin-{version}-jmh.jar 
+```
+For allowed arguments see help (`java -jar build/libs/concurrent-rdf-graph-kotlin-{version}-jmh.jar -help`)
 
 ## License
 
