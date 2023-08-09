@@ -3,8 +3,6 @@
 package com.github.sszuev.graphs
 
 import org.apache.jena.graph.Graph
-import org.apache.jena.graph.Node
-import org.apache.jena.graph.NodeFactory
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
 import org.openjdk.jmh.annotations.Group
@@ -30,7 +28,7 @@ open class FunctionalBenchmarks {
     fun setup() {
         val graph = checkNotNull(factory?.newGraph())
         repeat(42) {
-            graph.add(NodeFactory.createURI("s${it}"), NodeFactory.createURI("p${it}"), NodeFactory.createURI("o${it}"))
+            graph.add(uri("s${it}"), uri("p${it}"), uri("o${it}"))
         }
         this.graph = graph
     }
@@ -38,14 +36,14 @@ open class FunctionalBenchmarks {
     @Benchmark
     @Group("ADD")
     fun runAdd(eraser: Blackhole) {
-        graph!!.add(NodeFactory.createURI("s42"), NodeFactory.createURI("p42"), NodeFactory.createURI("o42"))
+        graph!!.add(uri("s42"), uri("p42"), uri("o42"))
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("DELETE")
     fun runDelete(eraser: Blackhole) {
-        graph!!.delete(NodeFactory.createURI("s1"), NodeFactory.createURI("p1"), NodeFactory.createURI("o1"))
+        graph!!.delete(uri("s1"), uri("p1"), uri("o1"))
         eraser.consume(graph)
     }
 
@@ -59,7 +57,7 @@ open class FunctionalBenchmarks {
     @Benchmark
     @Group("FIND_SOME")
     fun runFindByPredicate(eraser: Blackhole) {
-        check(graph!!.find(Node.ANY, NodeFactory.createURI("p4"), Node.ANY).toList().size == 1)
+        check(graph!!.find(any(), uri("p4"), any()).toList().size == 1)
         eraser.consume(graph)
     }
 
@@ -68,14 +66,13 @@ open class FunctionalBenchmarks {
     fun runContains(eraser: Blackhole) {
         check(
             graph!!.contains(
-                NodeFactory.createURI("s4"),
-                NodeFactory.createURI("p4"),
-                NodeFactory.createURI("o4")
+                uri("s4"),
+                uri("p4"),
+                uri("o4")
             )
         )
         eraser.consume(graph)
     }
-
 
     @Benchmark
     @Group("COUNT")

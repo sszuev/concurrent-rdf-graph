@@ -7,14 +7,14 @@ import org.apache.jena.sparql.graph.GraphFactory
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 enum class BenchmarkGraphFactory {
-    TXN_GRAPH {
-        override fun newGraph(): Graph {
-            return GraphFactory.createTxnGraph()
-        }
-    },
     MEM_GRAPH {
         override fun newGraph(): Graph {
             return GraphFactory.createGraphMem()
+        }
+    },
+    TXN_GRAPH {
+        override fun newGraph(): Graph {
+            return GraphFactory.createTxnGraph()
         }
     },
     SYNCHRONIZED_GRAPH {
