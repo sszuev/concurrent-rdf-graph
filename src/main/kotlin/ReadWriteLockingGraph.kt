@@ -45,30 +45,31 @@ class ReadWriteLockingGraph(
     private val openIterators: MutableMap<String, OuterTriplesIterator> = ConcurrentHashMap()
 
     @Throws(AddDeniedException::class)
-    override fun add(triple: Triple) = modify { get().add(triple) }
+    override fun add(triple: Triple) = modify(triple) { get().add(triple) }
 
     @Throws(DeleteDeniedException::class)
-    override fun delete(triple: Triple) = modify { get().delete(triple) }
+    override fun delete(triple: Triple) = modify(triple) { get().delete(triple) }
 
     @Throws(DeleteDeniedException::class)
-    override fun remove(s: Node?, p: Node?, o: Node?) = modify { get().remove(s, p, o) }
+    override fun remove(s: Node?, p: Node?, o: Node?) = modify(Triple.createMatch(s, p, o)) { get().remove(s, p, o) }
 
     @Throws(DeleteDeniedException::class)
     override fun clear() = modify { get().clear() }
 
     override fun close() = modify { get().close() }
 
-    override fun find(triple: Triple): ExtendedIterator<Triple> = read { get().find(triple).remember() }
+    override fun find(triple: Triple): ExtendedIterator<Triple> = read { get().find(triple).remember(triple) }
 
-    override fun find(s: Node?, p: Node?, o: Node?): ExtendedIterator<Triple> = read { get().find(s, p, o).remember() }
+    override fun find(s: Node?, p: Node?, o: Node?): ExtendedIterator<Triple> =
+        read { get().find(s, p, o).remember(Triple.createMatch(s, p, o)) }
 
-    override fun find(): ExtendedIterator<Triple> = read { get().find().remember() }
+    override fun find(): ExtendedIterator<Triple> = read { get().find().remember(Triple.ANY) }
 
     override fun stream(s: Node?, p: Node?, o: Node?): Stream<Triple> = read {
-        get().stream(s, p, o).asExtendedIterator().remember().asStream()
+        get().stream(s, p, o).asExtendedIterator().remember(Triple.createMatch(s, p, o)).asStream()
     }
 
-    override fun stream(): Stream<Triple> = read { get().stream().asExtendedIterator().remember().asStream() }
+    override fun stream(): Stream<Triple> = read { get().stream().asExtendedIterator().remember(Triple.ANY).asStream() }
 
     override fun contains(s: Node?, p: Node?, o: Node?): Boolean = read { get().contains(s, p, o) }
 
@@ -92,18 +93,22 @@ class ReadWriteLockingGraph(
 
     override fun getPrefixMapping(): PrefixMapping = LockingPrefixMapping(get().prefixMapping, readLock, writeLock)
 
-    private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
-        openIterators.keys.forEach { releaseToSnapshot(it) }
+    private inline fun <X> modify(triple: Triple? = null, action: () -> X): X = writeLock.withLock {
+        val ids = triple?.let { t ->
+            openIterators.asSequence().filter { it.value.pattern.matches(t) }.map { it.key }.toSet()
+        } ?: openIterators.keys
+        ids.forEach { releaseToSnapshot(it) }
         action()
     }
 
     private inline fun <X> read(action: () -> X): X = readLock.withLock(action)
 
-    private fun ExtendedIterator<Triple>.remember(): ExtendedIterator<Triple> {
+    private fun ExtendedIterator<Triple>.remember(searchTriple: Triple): ExtendedIterator<Triple> {
         val id = UUID.randomUUID().toString()
         val res = OuterTriplesIterator(
-            InnerTriplesIterator(base = this) { releaseToNull(id) },
-            ReentrantLock(),
+            pattern = searchTriple,
+            base = InnerTriplesIterator(base = this) { releaseToNull(id) },
+            lock = ReentrantLock(),
         )
         openIterators[id] = res
         return res
@@ -164,6 +169,7 @@ private class InnerTriplesIterator(
  * Has no reference to the graph when it is released (see [ReadWriteLockingGraph.releaseToSnapshot])
  */
 private class OuterTriplesIterator(
+    var pattern: Triple,
     var base: Iterator<Triple>,
     var lock: Lock,
 ) : NiceIterator<Triple>() {

@@ -96,9 +96,11 @@ open class ConcurrentBenchmarks {
             }
         }
         executorService.shutdown()
+        executorService.awaitTermination(EXECUTE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
     }
 
     companion object {
+        private const val EXECUTE_TIMEOUT_MS = 60 * 1000L
 
         /**
          * 6 find operations, 4 modification operations (2 add + 2 delete)
