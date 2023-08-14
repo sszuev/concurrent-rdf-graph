@@ -2,6 +2,7 @@ package com.github.sszuev.graphs
 
 import org.apache.jena.util.iterator.ExtendedIterator
 import org.apache.jena.util.iterator.WrappedIterator
+import java.util.LinkedList
 import java.util.Spliterator
 import java.util.Spliterators
 import java.util.stream.Stream
@@ -23,4 +24,10 @@ internal inline fun <T, R : MutableCollection<T>> Iterator<T>.collect(create: ()
         res.add(next())
     }
     return res
+}
+
+fun <X> LinkedList<X>.erasingIterator(): Iterator<X> = object : Iterator<X> {
+    override fun hasNext(): Boolean = this@erasingIterator.isNotEmpty()
+
+    override fun next(): X = this@erasingIterator.removeFirst()
 }

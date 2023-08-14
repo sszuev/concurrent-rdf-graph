@@ -13,6 +13,7 @@ import org.apache.jena.sparql.graph.GraphWrapper
 import org.apache.jena.util.iterator.ExtendedIterator
 import org.apache.jena.util.iterator.NiceIterator
 import org.apache.jena.util.iterator.WrappedIterator
+import java.util.LinkedList
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -95,6 +96,7 @@ class ReadWriteLockingGraph(
     override fun getPrefixMapping(): PrefixMapping = LockingPrefixMapping(get().prefixMapping, readLock, writeLock)
 
     private inline fun <X> modify(triple: Triple? = null, action: () -> X): X = writeLock.withLock {
+        // If the iterator is not running yet, we run it after modification.
         val unstartedIterators = openIterators.filterValues {
             it.lock.lock()
             if (it.started) {
@@ -105,6 +107,11 @@ class ReadWriteLockingGraph(
             }
         }
         try {
+            // Replace graph-iterators with snapshots.
+            // We can't just wait for finish iteration,
+            // as someone might not close or not exhaust this inner graph-iterator.
+            // If this a case than performance and memory consumption might be even worse
+            // than for [org.apache.jena.sparql.graph.GraphTxn]
             openIterators.asSequence()
                 .filter {
                     !unstartedIterators.containsKey(it.key) && (triple == null || it.value.pattern.matches(triple))
@@ -122,6 +129,9 @@ class ReadWriteLockingGraph(
 
     private inline fun <X> read(action: () -> X): X = readLock.withLock(action)
 
+    /**
+     * Creates a new lazy iterator wrapper.
+     */
     private fun remember(pattern: Triple, source: () -> ExtendedIterator<Triple>): ExtendedIterator<Triple> {
         val id = UUID.randomUUID().toString()
         val res = OuterTriplesIterator(
@@ -133,15 +143,21 @@ class ReadWriteLockingGraph(
         return res
     }
 
+    /**
+     * Replaces the base iterator with the snapshot iterator.
+     */
     private fun releaseToSnapshot(id: String) = openIterators.remove(id)?.let { wrapper ->
         wrapper.lock.withLock {
             val inner = wrapper.base as InnerTriplesIterator
-            val rest = inner.collect { mutableListOf() }
-            wrapper.base = rest.iterator()
+            val rest = inner.collect { LinkedList() }
+            wrapper.base = rest.erasingIterator()
             wrapper.lock = NoOpLock
         }
     }
 
+    /**
+     * For exhausted or closed iterators.
+     */
     private fun releaseToNull(id: String) = openIterators.remove(id)?.let { wrapper ->
         wrapper.base = WrappedIterator.emptyIterator()
         wrapper.lock = NoOpLock
@@ -283,6 +299,10 @@ class LockingPrefixMapping(
     }
 }
 
+/**
+ * A dummy [Lock] that does nothing.
+ * When iterator is realised to snapshot we replace [ReentrantLock] with this one since is no longer needed.
+ */
 private object NoOpLock : Lock {
     override fun lock() {
     }
