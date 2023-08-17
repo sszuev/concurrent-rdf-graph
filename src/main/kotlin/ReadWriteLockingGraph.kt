@@ -13,7 +13,7 @@ import org.apache.jena.sparql.graph.GraphWrapper
 import org.apache.jena.util.iterator.ExtendedIterator
 import org.apache.jena.util.iterator.NiceIterator
 import org.apache.jena.util.iterator.WrappedIterator
-import java.util.LinkedList
+import java.util.ArrayDeque
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -43,35 +43,35 @@ class ReadWriteLockingGraph(
         writeLock = lock.writeLock()
     )
 
-    private val openIterators: MutableMap<String, OuterTriplesIterator> = ConcurrentHashMap()
+    private val openIterators = ConcurrentHashMap<String, OuterTriplesIterator>()
 
     @Throws(AddDeniedException::class)
-    override fun add(triple: Triple) = modify(triple) { get().add(triple) }
+    override fun add(triple: Triple) = modify { get().add(triple) }
 
     @Throws(DeleteDeniedException::class)
-    override fun delete(triple: Triple) = modify(triple) { get().delete(triple) }
+    override fun delete(triple: Triple) = modify { get().delete(triple) }
 
     @Throws(DeleteDeniedException::class)
-    override fun remove(s: Node?, p: Node?, o: Node?) = modify(Triple.createMatch(s, p, o)) { get().remove(s, p, o) }
+    override fun remove(s: Node?, p: Node?, o: Node?) = modify { get().remove(s, p, o) }
 
     @Throws(DeleteDeniedException::class)
     override fun clear() = modify { get().clear() }
 
     override fun close() = modify { get().close() }
 
-    override fun find(triple: Triple): ExtendedIterator<Triple> = read { remember(triple) { get().find(triple) } }
+    override fun find(triple: Triple): ExtendedIterator<Triple> = read { remember { get().find(triple) } }
 
     override fun find(s: Node?, p: Node?, o: Node?): ExtendedIterator<Triple> =
-        read { remember(Triple.createMatch(s, p, o)) { get().find(s, p, o) } }
+        read { remember { get().find(s, p, o) } }
 
-    override fun find(): ExtendedIterator<Triple> = read { remember(Triple.ANY) { get().find() } }
+    override fun find(): ExtendedIterator<Triple> = read { remember { get().find() } }
 
     override fun stream(s: Node?, p: Node?, o: Node?): Stream<Triple> = read {
-        remember(Triple.createMatch(s, p, o)) { get().stream(s, p, o).asExtendedIterator() }.asStream()
+        remember { get().stream(s, p, o).asExtendedIterator() }.asStream()
     }
 
     override fun stream(): Stream<Triple> =
-        read { remember(Triple.ANY) { get().stream().asExtendedIterator() }.asStream() }
+        read { remember { get().stream().asExtendedIterator() }.asStream() }
 
     override fun contains(s: Node?, p: Node?, o: Node?): Boolean = read { get().contains(s, p, o) }
 
@@ -95,8 +95,8 @@ class ReadWriteLockingGraph(
 
     override fun getPrefixMapping(): PrefixMapping = LockingPrefixMapping(get().prefixMapping, readLock, writeLock)
 
-    private inline fun <X> modify(triple: Triple? = null, action: () -> X): X = writeLock.withLock {
-        // If the iterator is not running yet, we run it after modification.
+    private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
+        // If the iterator is not running yet, we run it after modification
         val unstartedIterators = openIterators.filterValues {
             it.lock.lock()
             if (it.started) {
@@ -112,15 +112,14 @@ class ReadWriteLockingGraph(
             // as someone might not close or not exhaust this inner graph-iterator.
             // If this a case than performance and memory consumption might be even worse
             // than for [org.apache.jena.sparql.graph.GraphTxn]
-            openIterators.asSequence()
-                .filter {
-                    !unstartedIterators.containsKey(it.key) && (triple == null || it.value.pattern.matches(triple))
+            // Also, we can't use triple-pattern selection,
+            // since even if the modification does not affect the iterated data,
+            // a ConcurrentModificationException can still happen
+            openIterators.keys().asIterator().forEach { id ->
+                if (!unstartedIterators.containsKey(id)) {
+                    releaseToSnapshot(id)
                 }
-                .map { it.key }
-                .toSet()
-                .forEach {
-                    releaseToSnapshot(it)
-                }
+            }
             action()
         } finally {
             unstartedIterators.values.forEach { it.lock.unlock() }
@@ -132,10 +131,9 @@ class ReadWriteLockingGraph(
     /**
      * Creates a new lazy iterator wrapper.
      */
-    private fun remember(pattern: Triple, source: () -> ExtendedIterator<Triple>): ExtendedIterator<Triple> {
+    private fun remember(source: () -> ExtendedIterator<Triple>): ExtendedIterator<Triple> {
         val id = UUID.randomUUID().toString()
         val res = OuterTriplesIterator(
-            pattern = pattern,
             base = InnerTriplesIterator(source) { releaseToNull(id) },
             lock = ReentrantLock(),
         )
@@ -149,7 +147,7 @@ class ReadWriteLockingGraph(
     private fun releaseToSnapshot(id: String) = openIterators.remove(id)?.let { wrapper ->
         wrapper.lock.withLock {
             val inner = wrapper.base as InnerTriplesIterator
-            val rest = inner.collect { LinkedList() }
+            val rest = inner.collect { ArrayDeque() }
             wrapper.base = rest.erasingIterator()
             wrapper.lock = NoOpLock
         }
@@ -159,8 +157,10 @@ class ReadWriteLockingGraph(
      * For exhausted or closed iterators.
      */
     private fun releaseToNull(id: String) = openIterators.remove(id)?.let { wrapper ->
-        wrapper.base = WrappedIterator.emptyIterator()
-        wrapper.lock = NoOpLock
+        wrapper.lock.withLock {
+            wrapper.base = WrappedIterator.emptyIterator()
+            wrapper.lock = NoOpLock
+        }
     }
 }
 
@@ -173,7 +173,7 @@ private class InnerTriplesIterator(
     inline val onClose: () -> Unit,
 ) : NiceIterator<Triple>() {
 
-    private var base: ExtendedIterator<Triple>? = null
+    var base: ExtendedIterator<Triple>? = null
 
     private fun base(): ExtendedIterator<Triple> {
         if (base == null) {
@@ -212,9 +212,8 @@ private class InnerTriplesIterator(
  * Has no reference to the graph when it is released ([base] replaced by snapshot)
  */
 private class OuterTriplesIterator(
-    var pattern: Triple,
-    var base: Iterator<Triple>,
-    var lock: Lock,
+    @Volatile var base: Iterator<Triple>,
+    @Volatile var lock: Lock,
 ) : NiceIterator<Triple>() {
 
     var started = false

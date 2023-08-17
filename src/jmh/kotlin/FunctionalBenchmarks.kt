@@ -2,6 +2,8 @@
 
 package com.github.sszuev.graphs
 
+import com.github.sszuev.graphs.testutils.any
+import com.github.sszuev.graphs.testutils.uri
 import org.apache.jena.graph.Graph
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.BenchmarkMode
@@ -21,12 +23,12 @@ import java.util.concurrent.TimeUnit
 @State(Scope.Benchmark)
 open class FunctionalBenchmarks {
     @Param
-    var factory: BenchmarkGraphFactory? = null
+    var factory: TestGraphs? = null
     private var graph: Graph? = null
 
     @Setup(Level.Invocation)
     fun setup() {
-        val graph = checkNotNull(factory?.newGraph())
+        val graph = checkNotNull(factory?.createNew())
         repeat(42) {
             graph.add(uri("s${it}"), uri("p${it}"), uri("o${it}"))
         }
@@ -79,6 +81,12 @@ open class FunctionalBenchmarks {
     fun runSize(eraser: Blackhole) {
         check(graph!!.size() == 42)
         eraser.consume(graph)
+    }
+
+    @Benchmark
+    @Group("MIXED_OPERATIONS")
+    fun runMixedOperations(eraser: Blackhole) {
+        smallGraph_scenarioA(graph!!, eraser, 42_42_42, 42_42)
     }
 }
 

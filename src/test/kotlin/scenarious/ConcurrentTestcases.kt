@@ -1,5 +1,6 @@
 package com.github.sszuev.graphs.scenarious
 
+import com.github.sszuev.graphs.testutils.EXECUTE_TIMEOUT_MS
 import com.github.sszuev.graphs.testutils.assertSafe
 import com.github.sszuev.graphs.testutils.threadLocalRandom
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -19,8 +20,6 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 import kotlin.random.nextInt
 
-internal const val timeoutInMills = 2 * 60 * 1000L
-
 internal fun testJavaMultiThreadEveryTaskModifications(
     graph: Graph,
     nTasks: Int,
@@ -30,7 +29,7 @@ internal fun testJavaMultiThreadEveryTaskModifications(
     testEveryTaskModifyAndRead(graph, nTasks, limitOfIterations) { tasks ->
         val futures = executorService.invokeAll(tasks)
         executorService.shutdown()
-        executorService.awaitTermination(timeoutInMills, TimeUnit.MILLISECONDS)
+        executorService.awaitTermination(EXECUTE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         futures.forEach {
             assertSafe {
                 it.get()
@@ -47,7 +46,7 @@ internal fun testKotlinMultiCoroutineEveryTaskModification(
 ) {
     testEveryTaskModifyAndRead(graph, nTasks, limitOfIterations) { tasks ->
         runBlocking(executorService.asCoroutineDispatcher()) {
-            withTimeout(timeoutInMills) {
+            withTimeout(EXECUTE_TIMEOUT_MS) {
                 val jobs = tasks.map {
                     launch { it.call() }
                 }
@@ -72,7 +71,7 @@ internal fun testJavaMultiThreadSeparateReadWrite(
     ) { tasks ->
         val futures = executorService.invokeAll(tasks)
         executorService.shutdown()
-        executorService.awaitTermination(timeoutInMills, TimeUnit.MILLISECONDS)
+        executorService.awaitTermination(EXECUTE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         futures.forEach {
             assertSafe {
                 it.get()
@@ -110,7 +109,7 @@ private fun testEveryTaskModifyAndRead(
                 barrier.countDown()
                 barrier.await()
                 println(":::S=[${Thread.currentThread().id}]::${Thread.currentThread().name}")
-                testModifyAndRead(
+                scenarioE_modifyAndRead(
                     graph = graph,
                     getTestData = testDataProvider,
                     minSize = minSize,
@@ -157,7 +156,7 @@ private fun testReadAndWriteTasks(
                 val numTriplesToAdd = addCounts[index]
                 val numTriplesToRemove = removeCounts[index]
                 println(":::[W]S=[${Thread.currentThread().id}]::${Thread.currentThread().name}")
-                testWrite(
+                scenarioE_modify(
                     graph = graph,
                     numTriplesToCreate = numTriplesToAdd,
                     numTriplesToDelete = numTriplesToRemove,
@@ -178,7 +177,7 @@ private fun testReadAndWriteTasks(
             barrier.await()
             println(":::[R]S=[${Thread.currentThread().id}]::${Thread.currentThread().name}")
             while (!hasError.get() && numberOfFinishedWriteTasks.get() < numberOfWriteTasks) {
-                testRead(
+                scenarioE_read(
                     graph,
                     testData = testData.threadLocalRandom(),
                     minSize = minSize,

@@ -1,5 +1,8 @@
+@file:Suppress("SpellCheckingInspection")
+
 package com.github.sszuev.graphs.scenarious
 
+import com.github.sszuev.graphs.smallGraph
 import com.github.sszuev.graphs.testutils.assertEquals
 import com.github.sszuev.graphs.testutils.assertFalse
 import com.github.sszuev.graphs.testutils.assertSingleOrEmpty
@@ -21,7 +24,24 @@ private val testSubject = NodeFactory.createURI("https://ex.com#test-subject")
 private val testPredicate = NodeFactory.createURI("https://ex.com#test-predicate")
 private val testObject = NodeFactory.createURI("https://ex.com#test-object")
 
-internal fun testModifyAndRead(
+internal fun scenarioC_modifyAndRead(graph: Graph) {
+    smallGraph.find().forEach {
+        graph.add(it)
+        graph.find(it.subject, Node.ANY, Node.ANY).toSet()
+        graph.find(Node.ANY, it.predicate, Node.ANY).toSet()
+        graph.find(Node.ANY, it.predicate, it.`object`).toSet()
+    }
+    smallGraph.find().forEach {
+        graph.delete(it)
+    }
+    smallGraph.find().forEach {
+        graph.find(it.subject, Node.ANY, it.`object`).toSet()
+        graph.find(it.subject, it.predicate, Node.ANY).toSet()
+        graph.find(Node.ANY, Node.ANY, it.`object`).toSet()
+    }
+}
+
+internal fun scenarioE_modifyAndRead(
     graph: Graph,
     getTestData: () -> ReadOperationsTestData,
     minSize: Int,
@@ -30,7 +50,7 @@ internal fun testModifyAndRead(
     numTriplesToDelete: Int
 ) {
     val newTriples = (1..numTriplesToCreate).map {
-        testRead(graph, getTestData(), minSize, maxSize)
+        scenarioE_read(graph, getTestData(), minSize, maxSize)
         when (ThreadLocalRandom.current().nextInt(4)) {
             0 -> createTriple()
             1 -> createTriple(subject = testSubject)
@@ -43,19 +63,19 @@ internal fun testModifyAndRead(
     }.toMutableList()
 
     repeat(numTriplesToDelete) {
-        testRead(graph, getTestData(), minSize, maxSize)
+        scenarioE_read(graph, getTestData(), minSize, maxSize)
         val t1 = createTriple()
         graph.remove(t1.subject, t1.predicate, t1.`object`)
 
-        testRead(graph, getTestData(), minSize, maxSize)
+        scenarioE_read(graph, getTestData(), minSize, maxSize)
 
         val t2 = newTriples.removeAt(0)
         graph.delete(t2)
     }
-    testRead(graph, getTestData(), minSize, maxSize)
+    scenarioE_read(graph, getTestData(), minSize, maxSize)
 }
 
-internal fun testWrite(
+internal fun scenarioE_modify(
     graph: Graph,
     numTriplesToCreate: Int,
     numTriplesToDelete: Int
@@ -79,7 +99,7 @@ internal fun testWrite(
     }
 }
 
-internal fun testRead(
+internal fun scenarioE_read(
     graph: Graph,
     testData: ReadOperationsTestData,
     minSize: Int,
