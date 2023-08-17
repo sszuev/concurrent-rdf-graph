@@ -16,7 +16,7 @@ internal fun <X> Stream<X>.asExtendedIterator(): ExtendedIterator<X> = object : 
 }
 
 internal fun <X> ExtendedIterator<X>.asStream(): Stream<X> =
-    StreamSupport.stream(Spliterators.spliteratorUnknownSize(this, Spliterator.IMMUTABLE), false)
+    StreamSupport.stream(Spliterators.spliteratorUnknownSize(this, Spliterator.NONNULL), false)
         .onClose { this.close() }
 
 internal inline fun <T, R : MutableCollection<T>> ClosableIterator<T>.collect(create: () -> R): R {

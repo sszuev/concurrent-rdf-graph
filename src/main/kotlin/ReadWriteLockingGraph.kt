@@ -70,8 +70,7 @@ class ReadWriteLockingGraph(
         remember { get().stream(s, p, o).asExtendedIterator() }.asStream()
     }
 
-    override fun stream(): Stream<Triple> =
-        read { remember { get().stream().asExtendedIterator() }.asStream() }
+    override fun stream(): Stream<Triple> = read { remember { get().stream().asExtendedIterator() }.asStream() }
 
     override fun contains(s: Node?, p: Node?, o: Node?): Boolean = read { get().contains(s, p, o) }
 
@@ -96,14 +95,14 @@ class ReadWriteLockingGraph(
     override fun getPrefixMapping(): PrefixMapping = LockingPrefixMapping(get().prefixMapping, readLock, writeLock)
 
     private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
-        // If the iterator is not running yet, we run it after modification
-        val unstartedIterators = openIterators.filterValues {
-            it.lock.lock()
-            if (it.started) {
-                it.lock.unlock()
-                false
+        val unstartedIterators = hashMapOf<String, Lock>()
+        openIterators.forEach {
+            it.value.lock.lock()
+            if (it.value.started) {
+                it.value.lock.unlock()
             } else {
-                true
+                // If the iterator is not running yet, we run it after modification
+                unstartedIterators[it.key] = it.value.lock
             }
         }
         try {
@@ -111,7 +110,7 @@ class ReadWriteLockingGraph(
             // We can't just wait for finish iteration,
             // as someone might not close or not exhaust this inner graph-iterator.
             // If this a case than performance and memory consumption might be even worse
-            // than for [org.apache.jena.sparql.graph.GraphTxn]
+            // than for transactional graphs.
             // Also, we can't use triple-pattern selection,
             // since even if the modification does not affect the iterated data,
             // a ConcurrentModificationException can still happen
@@ -122,7 +121,7 @@ class ReadWriteLockingGraph(
             }
             action()
         } finally {
-            unstartedIterators.values.forEach { it.lock.unlock() }
+            unstartedIterators.values.forEach { it.unlock() }
         }
     }
 
@@ -170,7 +169,7 @@ class ReadWriteLockingGraph(
  */
 private class InnerTriplesIterator(
     val source: () -> ExtendedIterator<Triple>,
-    inline val onClose: () -> Unit,
+    val onClose: () -> Unit,
 ) : NiceIterator<Triple>() {
 
     var base: ExtendedIterator<Triple>? = null
@@ -216,6 +215,7 @@ private class OuterTriplesIterator(
     @Volatile var lock: Lock,
 ) : NiceIterator<Triple>() {
 
+    @Volatile
     var started = false
 
     override fun hasNext(): Boolean = lock.withLock {

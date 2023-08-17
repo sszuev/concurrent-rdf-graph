@@ -1,6 +1,7 @@
 package com.github.sszuev.graphs
 
 import com.github.sszuev.graphs.scenarious.scenarioC_modifyAndRead
+import com.github.sszuev.graphs.scenarious.scenarioF_modifyAndRead
 import com.github.sszuev.graphs.scenarious.testJavaMultiThreadEveryTaskModifications
 import com.github.sszuev.graphs.scenarious.testJavaMultiThreadSeparateReadWrite
 import com.github.sszuev.graphs.scenarious.testKotlinMultiCoroutineEveryTaskModification
@@ -141,12 +142,24 @@ internal class ConcurrentGraphTest {
     @Timeout(EXECUTE_TIMEOUT_MS)
     @ParameterizedTest
     @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
-    fun `test many read many write for non-empty graph in multithreading, scenarioC`(factory: TestGraphs) {
+    fun `test many read many write for pizza graph in multithreading, scenarioC`(factory: TestGraphs) {
         val pizza = factory.createFrom(pizzaGraph)
         runTestScenario(
             graph = pizza,
             numberOfThreads = 2,
             innerIterations = 4242,
         ) { g -> scenarioC_modifyAndRead(g) }
+    }
+
+    @Timeout(EXECUTE_TIMEOUT_MS)
+    @ParameterizedTest
+    @EnumSource(names = ["SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH", "TXN_GRAPH"])
+    fun `test many read many write for big graph in multithreading, scenarioF`(factory: TestGraphs) {
+        val pizza = factory.createFrom(bigGraph)
+        runTestScenario(
+            graph = pizza,
+            numberOfThreads = 8,
+            innerIterations = 13,
+        ) { g -> scenarioF_modifyAndRead(g) }
     }
 }

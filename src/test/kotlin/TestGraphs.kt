@@ -34,11 +34,28 @@ val smallGraph: Graph = GraphFactory.createDefaultGraph().also { g ->
     (7..42).forEach {
         g.add(uri("s$it"), uri("p$it"), uri("o$it"))
     }
-    // total triples: 35 + 13 = 48
+    // total triples: 36 + 13 = 49
 }
 
 // total triples: 1937
 val pizzaGraph: Graph = loadGraph("/pizza.ttl", { GraphMemFactory.createGraphMem2() })
+
+// total triples: 740880
+val bigGraph: Graph = GraphMemFactory.createGraphMem2().let { graph ->
+    val ns = "http://ex#"
+    repeat(420) { si ->
+        val s = uri("${ns}s$si")
+        repeat(42) { pi ->
+            val p = uri("${ns}p$pi")
+            repeat(42) { oi ->
+                val o = uri("${ns}v$oi")
+                graph.add(s, p, o)
+            }
+        }
+    }
+    graph.prefixMapping.setNsPrefix("", ns)
+    graph
+}
 
 internal fun loadGraph(resource: String, factory: () -> Graph, lang: Lang? = Lang.TURTLE): Graph {
     checkNotNull(

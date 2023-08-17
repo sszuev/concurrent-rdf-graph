@@ -13,3 +13,13 @@ fun <X> ExtendedIterator<X>.first(): X? {
         close()
     }
 }
+
+fun <X> ExtendedIterator<X>.count(): Long {
+    var res = 0L
+    return try {
+        forEach { res++ }
+        res
+    } finally {
+        close()
+    }
+}

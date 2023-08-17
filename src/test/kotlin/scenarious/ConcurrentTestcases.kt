@@ -72,9 +72,20 @@ internal fun testJavaMultiThreadSeparateReadWrite(
         val futures = executorService.invokeAll(tasks)
         executorService.shutdown()
         executorService.awaitTermination(EXECUTE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        val error = AssertionError()
         futures.forEach {
-            assertSafe {
+            try {
                 it.get()
+            } catch (e: Exception) {
+                executorService.shutdownNow()
+                error.addSuppressed(e)
+            }
+        }
+        if (error.suppressed.isNotEmpty()) {
+            if (error.suppressed.size == 1) {
+                throw error.suppressed[0]
+            } else {
+                throw error
             }
         }
     }

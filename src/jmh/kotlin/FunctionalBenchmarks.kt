@@ -3,6 +3,7 @@
 package com.github.sszuev.graphs
 
 import com.github.sszuev.graphs.testutils.any
+import com.github.sszuev.graphs.testutils.count
 import com.github.sszuev.graphs.testutils.uri
 import org.apache.jena.graph.Graph
 import org.openjdk.jmh.annotations.Benchmark
@@ -28,17 +29,17 @@ open class FunctionalBenchmarks {
 
     @Setup(Level.Invocation)
     fun setup() {
-        val graph = checkNotNull(factory?.createNew())
-        repeat(42) {
-            graph.add(uri("s${it}"), uri("p${it}"), uri("o${it}"))
+        this.graph = checkNotNull(factory?.createNew()).also { g ->
+            smallGraph.find().forEach {
+                g.add(it)
+            }
         }
-        this.graph = graph
     }
 
     @Benchmark
     @Group("ADD")
     fun runAdd(eraser: Blackhole) {
-        graph!!.add(uri("s42"), uri("p42"), uri("o42"))
+        graph!!.add(uri("s42"), uri("p24"), uri("o42"))
         eraser.consume(graph)
     }
 
@@ -52,41 +53,35 @@ open class FunctionalBenchmarks {
     @Benchmark
     @Group("FIND_ALL")
     fun runFindAll(eraser: Blackhole) {
-        check(graph!!.find().toList().size == 42)
+        check(graph!!.find().count() == 49L)
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("FIND_SOME")
     fun runFindByPredicate(eraser: Blackhole) {
-        check(graph!!.find(any(), uri("p4"), any()).toList().size == 1)
+        check(graph!!.find(any(), uri("p4"), any()).count() == 1L)
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("CONTAINS")
     fun runContains(eraser: Blackhole) {
-        check(
-            graph!!.contains(
-                uri("s4"),
-                uri("p4"),
-                uri("o4")
-            )
-        )
+        check(graph!!.contains(uri("s42"), uri("p42"), uri("o42")))
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("COUNT")
     fun runSize(eraser: Blackhole) {
-        check(graph!!.size() == 42)
+        check(graph!!.size() == 49)
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("MIXED_OPERATIONS")
     fun runMixedOperations(eraser: Blackhole) {
-        smallGraph_scenarioA(graph!!, eraser, 42_42_42, 42_42)
+        smallGraph_scenarioA_RW(graph!!, eraser, 42_42_42, 42_42)
     }
 }
 

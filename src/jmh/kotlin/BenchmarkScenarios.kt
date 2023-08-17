@@ -4,8 +4,12 @@ package com.github.sszuev.graphs
 
 import com.github.sszuev.graphs.testutils.any
 import com.github.sszuev.graphs.testutils.bnode
+import com.github.sszuev.graphs.testutils.count
+import com.github.sszuev.graphs.testutils.create
 import com.github.sszuev.graphs.testutils.first
 import com.github.sszuev.graphs.testutils.literal
+import com.github.sszuev.graphs.testutils.statements
+import com.github.sszuev.graphs.testutils.toSet
 import com.github.sszuev.graphs.testutils.uri
 import org.apache.jena.graph.Graph
 import org.apache.jena.graph.Node
@@ -20,7 +24,7 @@ import org.openjdk.jmh.infra.Blackhole
 /**
  * 6 find operations, 4 modification operations (2 add + 2 delete)
  */
-internal fun smallGraph_scenarioA(
+internal fun smallGraph_scenarioA_RW(
     graph: Graph,
     b: Blackhole,
     ti: Int,
@@ -44,8 +48,8 @@ internal fun smallGraph_scenarioA(
     val t2 = Triple.create(bnode(), uri("p-$ti"), bnode())
     graph.add(t2)
 
-    val res4 = graph.find().toList()
-    check(48 <= res4.size)
+    val res4 = graph.find().count()
+    check(48L <= res4)
     b.consume(res4)
 
     graph.delete(t1)
@@ -57,12 +61,12 @@ internal fun smallGraph_scenarioA(
     check(3 == res5.size)
     b.consume(res5)
 
-    val res6 = graph.find(uri("s6"), uri("p6"), uri("o6")).toList()
+    val res6 = graph.find(uri("s6"), uri("p6"), uri("o6")).toSet()
     check(1 == res6.size)
     b.consume(res6)
 }
 
-fun pizzaGraph_scenarioA(
+fun pizzaGraph_scenarioA_RW(
     graph: Graph,
     b: Blackhole,
     ti: Int,
@@ -142,7 +146,7 @@ fun pizzaGraph_scenarioA(
     b.consume(m)
 }
 
-internal fun pizzaGraph_scenarioB(
+internal fun pizzaGraph_scenarioB_R(
     graph: Graph,
     b: Blackhole,
 ) {
@@ -219,7 +223,7 @@ internal fun pizzaGraph_scenarioB(
     b.consume(m)
 }
 
-internal fun scenarioC(
+internal fun scenarioC_RW(
     graph: Graph,
     b: Blackhole,
 ) {
@@ -251,7 +255,7 @@ internal fun scenarioC(
     }
 }
 
-fun scenarioD(
+fun scenarioD_W(
     graph: Graph,
 ) {
     smallGraph.find().forEach {
@@ -260,4 +264,75 @@ fun scenarioD(
     smallGraph.find().forEach {
         graph.delete(it)
     }
+}
+
+fun scenarioF_RW(
+    graph: Graph,
+    b: Blackhole,
+    ti: Int,
+    ii: Int,
+) {
+    val ns = "http://ex#"
+    val suffix = "[$ti,$ii]"
+    val model = ModelFactory.createModelForGraph(graph)
+    val triple = model.create(ns + "s7", ns + "p13", ns + "${suffix}o")
+    val x1 = model.graph.stream().use { it.limit(4242).filter { t -> t.`object`.uri == ns + "${suffix}o" }.toSet() }
+    model.remove(triple)
+    b.consume(x1)
+    b.consume(triple)
+    repeat(2) {
+        repeat(4) { i ->
+            val x2 = model.statements(ns + "s$i", null, null)
+                .filter { it.predicate.uri == ns + "p7" }.count() // 42
+            b.consume(x2)
+        }
+        val triples = (1..2).map { s ->
+            (1..2).map { p ->
+                (1..2).map { o ->
+                    model.create(ns + "s$s$suffix", ns + "y$p", ns + "f$o")
+                }
+            }.flatten()
+        }.flatten()
+        repeat(4) { i ->
+            val x3 = model.statements(null, ns + "p$i", null).map { it.subject }.count() // 17640
+            b.consume(x3)
+        }
+        repeat(4) { i ->
+            val x4 = model.statements(null, null, ns + "v$i").map { it.subject }.count() // 17640
+            b.consume(x4)
+        }
+        model.remove(triples)
+        repeat(2) { s ->
+            repeat(2) { p ->
+                repeat(2) { o ->
+                    val t = model.create(ns + "s$s", ns + "y$p$suffix", ns + "f$o")
+                    val x5 = model.statements(ns + "s$s").toList() // 1756
+                    b.consume(x5)
+                    model.remove(t)
+                }
+            }
+        }
+        b.consume(triples)
+    }
+}
+
+fun scenarioG_R(
+    graph: Graph,
+    b: Blackhole,
+) {
+    val ns = "http://ex#"
+    val x1 = graph.stream(uri("${ns}s21"), any(), any())
+        .flatMap { graph.stream(any(), any(), it.`object`) }
+        .skip(4200)
+        .limit(4200).use { it.count() }
+    b.consume(x1)
+
+    val x2 = graph.stream(any(), uri("${ns}p21"), uri("${ns}o21")).filter { it.predicate.uri.endsWith("21") }.toSet()
+    b.consume(x2)
+
+    val x3 = graph.size()
+    b.consume(x3)
+
+    val x4 = graph.contains(any(), uri("${ns}p21"), any())
+    b.consume(x4)
 }

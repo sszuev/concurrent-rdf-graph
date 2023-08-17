@@ -7,13 +7,16 @@ import com.github.sszuev.graphs.testutils.assertEquals
 import com.github.sszuev.graphs.testutils.assertFalse
 import com.github.sszuev.graphs.testutils.assertSingleOrEmpty
 import com.github.sszuev.graphs.testutils.assertTrue
+import com.github.sszuev.graphs.testutils.create
 import com.github.sszuev.graphs.testutils.createTriple
+import com.github.sszuev.graphs.testutils.statements
 import com.github.sszuev.graphs.testutils.threadLocalRandom
 import com.github.sszuev.graphs.testutils.toSet
 import org.apache.jena.graph.Graph
 import org.apache.jena.graph.Node
 import org.apache.jena.graph.NodeFactory
 import org.apache.jena.graph.Triple
+import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.vocabulary.OWL
 import org.apache.jena.vocabulary.RDF
 import org.junit.jupiter.api.Assertions
@@ -38,6 +41,40 @@ internal fun scenarioC_modifyAndRead(graph: Graph) {
         graph.find(it.subject, Node.ANY, it.`object`).toSet()
         graph.find(it.subject, it.predicate, Node.ANY).toSet()
         graph.find(Node.ANY, Node.ANY, it.`object`).toSet()
+    }
+}
+
+internal fun scenarioF_modifyAndRead(graph: Graph) {
+    val ns = "http://ex#"
+    val model = ModelFactory.createModelForGraph(graph)
+    repeat(2) {
+        repeat(4) { i ->
+            model.statements(ns + "s$i", null, null).filter {
+                it.predicate.uri == ns + "p7"
+            }.count()
+        }
+        val triples = (1..4).map { s ->
+            (1..4).map { p ->
+                (1..4).map { o ->
+                    model.create(ns + "s$s", ns + "y$p", ns + "f$o")
+                }
+            }.flatten()
+        }.flatten()
+        repeat(4) { i ->
+            model.statements(null, ns + "p$i", null).map {
+                it.subject
+            }.count()
+        }
+        model.remove(triples)
+        repeat(4) { s ->
+            repeat(4) { p ->
+                repeat(4) { o ->
+                    val t = model.create(ns + "s$s", ns + "y$p", ns + "f$o")
+                    model.statements(ns + "s$s").toList()
+                    model.remove(t)
+                }
+            }
+        }
     }
 }
 
