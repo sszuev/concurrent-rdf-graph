@@ -92,11 +92,38 @@ class ReadWriteLockingGraph(
 
     override fun getEventManager(): GraphEventManager = get().eventManager
 
-    override fun getPrefixMapping(): PrefixMapping = LockingPrefixMapping(get().prefixMapping, readLock, writeLock)
+    override fun getPrefixMapping(): PrefixMapping =
+        ReadWriteLockingPrefixMapping(get().prefixMapping, readLock, writeLock)
+
+    /**
+     * Creates a new lazy iterator wrapper.
+     */
+    private fun remember(source: () -> ExtendedIterator<Triple>): ExtendedIterator<Triple> {
+        val id = UUID.randomUUID().toString()
+        val res = OuterTriplesIterator(
+            base = InnerTriplesIterator(source) {
+                // For exhausted or closed iterators
+                openIterators.remove(id)?.let {
+                    it.lock.withLock {
+                        it.base = WrappedIterator.emptyIterator()
+                        it.lock = NoOpLock
+                    }
+                }
+            },
+            lock = ReentrantLock(),
+        )
+        openIterators[id] = res
+        return res
+    }
+
+    private inline fun <X> read(action: () -> X): X = readLock.withLock(action)
 
     private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
         val unstartedIterators = hashMapOf<String, Lock>()
         openIterators.forEach {
+            if (it.value.started) {
+                return@forEach
+            }
             it.value.lock.lock()
             if (it.value.started) {
                 it.value.lock.unlock()
@@ -116,7 +143,15 @@ class ReadWriteLockingGraph(
             // a ConcurrentModificationException can still happen
             openIterators.keys().asIterator().forEach { id ->
                 if (!unstartedIterators.containsKey(id)) {
-                    releaseToSnapshot(id)
+                    // Replaces the base iterator with the snapshot iterator
+                    openIterators.remove(id)?.let {
+                        it.lock.withLock {
+                            val inner = it.base as InnerTriplesIterator
+                            val rest = inner.collect { ArrayDeque() }
+                            it.base = rest.erasingIterator()
+                            it.lock = NoOpLock
+                        }
+                    }
                 }
             }
             action()
@@ -124,61 +159,33 @@ class ReadWriteLockingGraph(
             unstartedIterators.values.forEach { it.unlock() }
         }
     }
-
-    private inline fun <X> read(action: () -> X): X = readLock.withLock(action)
-
-    /**
-     * Creates a new lazy iterator wrapper.
-     */
-    private fun remember(source: () -> ExtendedIterator<Triple>): ExtendedIterator<Triple> {
-        val id = UUID.randomUUID().toString()
-        val res = OuterTriplesIterator(
-            base = InnerTriplesIterator(source) { releaseToNull(id) },
-            lock = ReentrantLock(),
-        )
-        openIterators[id] = res
-        return res
-    }
-
-    /**
-     * Replaces the base iterator with the snapshot iterator.
-     */
-    private fun releaseToSnapshot(id: String) = openIterators.remove(id)?.let { wrapper ->
-        wrapper.lock.withLock {
-            val inner = wrapper.base as InnerTriplesIterator
-            val rest = inner.collect { ArrayDeque() }
-            wrapper.base = rest.erasingIterator()
-            wrapper.lock = NoOpLock
-        }
-    }
-
-    /**
-     * For exhausted or closed iterators.
-     */
-    private fun releaseToNull(id: String) = openIterators.remove(id)?.let { wrapper ->
-        wrapper.lock.withLock {
-            wrapper.base = WrappedIterator.emptyIterator()
-            wrapper.lock = NoOpLock
-        }
-    }
 }
 
 /**
  * A wrapper for base graph iterator.
- * Has a reference to the graph through [onClose] operation (see [ReadWriteLockingGraph.releaseToNull]).
+ * Has a reference to the graph through [onClose] operation.
  */
 private class InnerTriplesIterator(
     val source: () -> ExtendedIterator<Triple>,
     val onClose: () -> Unit,
 ) : NiceIterator<Triple>() {
 
-    var base: ExtendedIterator<Triple>? = null
+    private var base: ExtendedIterator<Triple>? = null
+    private var closed = false
 
     private fun base(): ExtendedIterator<Triple> {
         if (base == null) {
             base = source()
         }
         return checkNotNull(base)
+    }
+
+    private fun invokeOnClose() {
+        if (closed) {
+            return
+        }
+        onClose()
+        closed = true
     }
 
     override fun hasNext(): Boolean = try {
@@ -188,21 +195,22 @@ private class InnerTriplesIterator(
         }
         res
     } catch (ex: Exception) {
-        onClose()
+        invokeOnClose()
         throw ex
     }
 
     override fun next(): Triple = try {
         base().next()
     } catch (ex: Exception) {
-        onClose()
+        invokeOnClose()
         throw ex
     }
 
     override fun close() {
         base?.close()
-        onClose()
+        invokeOnClose()
     }
+
 }
 
 /**
@@ -229,73 +237,6 @@ private class OuterTriplesIterator(
     }
 
     override fun close() = lock.withLock { close(base) }
-}
-
-class LockingPrefixMapping(
-    private val pm: PrefixMapping,
-    private val readLock: Lock,
-    private val writeLock: Lock,
-) : PrefixMapping {
-
-    override fun setNsPrefix(prefix: String, uri: String): PrefixMapping = writeLock.withLock {
-        also { pm.setNsPrefix(prefix, uri) }
-    }
-
-    override fun removeNsPrefix(prefix: String): PrefixMapping = writeLock.withLock {
-        also { pm.removeNsPrefix(prefix) }
-    }
-
-    override fun clearNsPrefixMap(): PrefixMapping = writeLock.withLock {
-        also { pm.clearNsPrefixMap() }
-    }
-
-    override fun setNsPrefixes(other: PrefixMapping): PrefixMapping = writeLock.withLock {
-        also { pm.setNsPrefixes(other) }
-    }
-
-    override fun setNsPrefixes(map: Map<String, String>): PrefixMapping = writeLock.withLock {
-        pm.setNsPrefixes(map)
-    }
-
-    override fun withDefaultMappings(map: PrefixMapping): PrefixMapping = writeLock.withLock {
-        also { pm.withDefaultMappings(pm) }
-    }
-
-    override fun getNsPrefixURI(prefix: String): String = readLock.withLock {
-        pm.getNsPrefixURI(prefix)
-    }
-
-    override fun getNsURIPrefix(uri: String): String = readLock.withLock {
-        pm.getNsPrefixURI(uri)
-    }
-
-    override fun getNsPrefixMap(): Map<String, String> = readLock.withLock {
-        pm.nsPrefixMap
-    }
-
-    override fun expandPrefix(prefixed: String): String = readLock.withLock {
-        pm.expandPrefix(prefixed)
-    }
-
-    override fun shortForm(uri: String): String = readLock.withLock {
-        pm.shortForm(uri)
-    }
-
-    override fun qnameFor(uri: String): String = readLock.withLock {
-        pm.qnameFor(uri)
-    }
-
-    override fun lock(): PrefixMapping = writeLock.withLock {
-        also { pm.lock() }
-    }
-
-    override fun numPrefixes(): Int = readLock.withLock {
-        pm.numPrefixes()
-    }
-
-    override fun samePrefixMappingAs(other: PrefixMapping): Boolean = readLock.withLock {
-        pm.samePrefixMappingAs(other)
-    }
 }
 
 /**

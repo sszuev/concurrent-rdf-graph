@@ -26,16 +26,6 @@ internal fun assertThrows(vararg expectedErrors: Class<out Throwable>, block: ()
     Assertions.fail<Unit>("${threadInfo()}::unexpected success")
 }
 
-internal fun assertSafe(block: () -> Unit) {
-    try {
-        block()
-    } catch (ex: AssertionError) {
-        throw ex
-    } catch (ex: Exception) {
-        Assertions.fail<Unit>("${threadInfo()}::${ex.message}", ex)
-    }
-}
-
 internal fun <T> Sequence<T>.assertSingleOrEmpty(expectSingle: Boolean): T? {
     return if (expectSingle) {
         assertSingle()

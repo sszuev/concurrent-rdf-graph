@@ -1,20 +1,14 @@
 package com.github.sszuev.graphs.scenarious
 
-import com.github.sszuev.graphs.testutils.EXECUTE_TIMEOUT_MS
-import com.github.sszuev.graphs.testutils.assertSafe
+import com.github.sszuev.graphs.testutils.runAll
 import com.github.sszuev.graphs.testutils.threadLocalRandom
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.apache.jena.graph.Graph
 import org.junit.jupiter.api.Assertions
 import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
@@ -26,15 +20,8 @@ internal fun testJavaMultiThreadEveryTaskModifications(
     limitOfIterations: Int,
     executorService: ExecutorService = Executors.newFixedThreadPool(nTasks),
 ) {
-    testEveryTaskModifyAndRead(graph, nTasks, limitOfIterations) { tasks ->
-        val futures = executorService.invokeAll(tasks)
-        executorService.shutdown()
-        executorService.awaitTermination(EXECUTE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        futures.forEach {
-            assertSafe {
-                it.get()
-            }
-        }
+    testEveryTaskModifyAndRead(graph, nTasks, limitOfIterations) {
+        executorService.runAll(it)
     }
 }
 
@@ -44,15 +31,8 @@ internal fun testKotlinMultiCoroutineEveryTaskModification(
     limitOfIterations: Int,
     executorService: ExecutorService = Executors.newFixedThreadPool(nTasks),
 ) {
-    testEveryTaskModifyAndRead(graph, nTasks, limitOfIterations) { tasks ->
-        runBlocking(executorService.asCoroutineDispatcher()) {
-            withTimeout(EXECUTE_TIMEOUT_MS) {
-                val jobs = tasks.map {
-                    launch { it.call() }
-                }
-                jobs.joinAll()
-            }
-        }
+    testEveryTaskModifyAndRead(graph, nTasks, limitOfIterations) {
+        executorService.asCoroutineDispatcher().runAll(it)
     }
 }
 
@@ -68,27 +48,7 @@ internal fun testJavaMultiThreadSeparateReadWrite(
         numberOfReadTasks = nReadThreads,
         numberOfWriteTasks = nWriteThreads,
         limitOfWriteIterations = limitOfIterations,
-    ) { tasks ->
-        val futures = executorService.invokeAll(tasks)
-        executorService.shutdown()
-        executorService.awaitTermination(EXECUTE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        val error = AssertionError()
-        futures.forEach {
-            try {
-                it.get()
-            } catch (e: Exception) {
-                executorService.shutdownNow()
-                error.addSuppressed(e)
-            }
-        }
-        if (error.suppressed.isNotEmpty()) {
-            if (error.suppressed.size == 1) {
-                throw error.suppressed[0]
-            } else {
-                throw error
-            }
-        }
-    }
+    ) { executorService.runAll(it) }
 }
 
 private fun testEveryTaskModifyAndRead(
