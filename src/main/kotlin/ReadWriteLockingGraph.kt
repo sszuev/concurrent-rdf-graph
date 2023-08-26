@@ -14,6 +14,7 @@ import org.apache.jena.util.iterator.ExtendedIterator
 import org.apache.jena.util.iterator.NiceIterator
 import org.apache.jena.util.iterator.WrappedIterator
 import java.util.ArrayDeque
+import java.util.Queue
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -21,6 +22,7 @@ import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.stream.Stream
 import kotlin.concurrent.withLock
 
@@ -35,12 +37,18 @@ class ReadWriteLockingGraph(
     graph: Graph,
     private val readLock: Lock,
     private val writeLock: Lock,
+    private val iteratorCacheChunkSize: Int,
 ) : GraphWrapper(graph), Graph {
 
-    constructor(graph: Graph, lock: ReadWriteLock) : this(
+    constructor(
+        graph: Graph,
+        lock: ReadWriteLock = ReentrantReadWriteLock(),
+        iteratorCacheChunkSize: Int = 1024,
+    ) : this(
         graph = graph,
         readLock = lock.readLock(),
-        writeLock = lock.writeLock()
+        writeLock = lock.writeLock(),
+        iteratorCacheChunkSize = iteratorCacheChunkSize
     )
 
     private val openIterators = ConcurrentHashMap<String, OuterTriplesIterator>()
@@ -101,7 +109,7 @@ class ReadWriteLockingGraph(
     private fun remember(source: () -> ExtendedIterator<Triple>): ExtendedIterator<Triple> {
         val id = UUID.randomUUID().toString()
         val res = OuterTriplesIterator(
-            base = InnerTriplesIterator(source) {
+            base = InnerTriplesIterator(source, ArrayDeque()) {
                 // For exhausted or closed iterators
                 openIterators.remove(id)?.let {
                     it.lock.withLock {
@@ -119,20 +127,23 @@ class ReadWriteLockingGraph(
     private inline fun <X> read(action: () -> X): X = readLock.withLock(action)
 
     private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
-        val unstartedIterators = hashMapOf<String, Lock>()
-        openIterators.forEach {
-            if (it.value.started) {
-                return@forEach
-            }
-            it.value.lock.lock()
-            if (it.value.started) {
-                it.value.lock.unlock()
-            } else {
-                // If the iterator is not running yet, we run it after modification
-                unstartedIterators[it.key] = it.value.lock
-            }
-        }
+        val unstartedIterators = mutableListOf<Lock>()
+        val processing = mutableListOf<String>()
         try {
+            openIterators.forEach {
+                if (it.value.started) {
+                    processing.add(it.key)
+                    return@forEach
+                }
+                it.value.lock.lock()
+                if (it.value.started) {
+                    it.value.lock.unlock()
+                    processing.add(it.key)
+                } else {
+                    // If the iterator is not running yet, we run it after modification
+                    unstartedIterators.add(it.value.lock)
+                }
+            }
             // Replace graph-iterators with snapshots.
             // We can't just wait for finish iteration,
             // as someone might not close or not exhaust this inner graph-iterator.
@@ -141,22 +152,29 @@ class ReadWriteLockingGraph(
             // Also, we can't use triple-pattern selection,
             // since even if the modification does not affect the iterated data,
             // a ConcurrentModificationException can still happen
-            openIterators.keys().asIterator().forEach { id ->
-                if (!unstartedIterators.containsKey(id)) {
-                    // Replaces the base iterator with the snapshot iterator
-                    openIterators.remove(id)?.let {
-                        it.lock.withLock {
-                            val inner = it.base as InnerTriplesIterator
-                            val rest = inner.collect { ArrayDeque() }
-                            it.base = rest.erasingIterator()
-                            it.lock = NoOpLock
-                        }
+            while (processing.isNotEmpty()) {
+                val id = processing.removeAt(0)
+                val it = openIterators[id]
+                if (it == null || it.base !is InnerTriplesIterator) { // released on close
+                    openIterators.remove(id)
+                    continue
+                }
+                it.lock.withLock {
+                    val inner = it.base as? InnerTriplesIterator
+                    if (inner == null) { // released on close
+                        openIterators.remove(id)
+                    } else if (!inner.cache(iteratorCacheChunkSize)) {
+                        it.base = inner.cacheIterator
+                        it.lock = NoOpLock
+                        openIterators.remove(id)
+                    } else {
+                        processing.add(id)
                     }
                 }
             }
             action()
         } finally {
-            unstartedIterators.values.forEach { it.unlock() }
+            unstartedIterators.forEach { it.unlock() }
         }
     }
 }
@@ -167,17 +185,19 @@ class ReadWriteLockingGraph(
  */
 private class InnerTriplesIterator(
     val source: () -> ExtendedIterator<Triple>,
+    val cache: Queue<Triple>,
     val onClose: () -> Unit,
 ) : NiceIterator<Triple>() {
 
-    private var base: ExtendedIterator<Triple>? = null
+    val cacheIterator: Iterator<Triple> = cache.erasingIterator()
+    private var baseIterator: ExtendedIterator<Triple>? = null
     private var closed = false
 
     private fun base(): ExtendedIterator<Triple> {
-        if (base == null) {
-            base = source()
+        if (baseIterator == null) {
+            baseIterator = source()
         }
-        return checkNotNull(base)
+        return checkNotNull(baseIterator)
     }
 
     private fun invokeOnClose() {
@@ -188,26 +208,40 @@ private class InnerTriplesIterator(
         closed = true
     }
 
-    override fun hasNext(): Boolean = try {
-        val res = base().hasNext()
-        if (!res) {
-            onClose()
+    fun cache(size: Int): Boolean {
+        val base = base()
+        var count = 0
+        while (count++ < size && base.hasNext()) {
+            cache.add(base.next())
         }
-        res
+        return base.hasNext()
+    }
+
+    override fun hasNext(): Boolean = try {
+        if (cacheIterator.hasNext()) {
+            true
+        } else {
+            val res = base().hasNext()
+            if (!res) {
+                onClose()
+            }
+            res
+        }
     } catch (ex: Exception) {
         invokeOnClose()
         throw ex
     }
 
     override fun next(): Triple = try {
-        base().next()
+        cacheIterator.nextOrNull() ?: base().next()
     } catch (ex: Exception) {
         invokeOnClose()
         throw ex
     }
 
     override fun close() {
-        base?.close()
+        cache.clear()
+        baseIterator?.close()
         invokeOnClose()
     }
 

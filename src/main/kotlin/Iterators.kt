@@ -36,6 +36,8 @@ inline fun <T, R : MutableCollection<T>> ClosableIterator<T>.collect(create: () 
     return res
 }
 
+fun <X> Iterator<X>.nextOrNull(): X? = if (this.hasNext()) this.next() else null
+
 fun <X> Queue<X>.erasingIterator(): Iterator<X> = object : Iterator<X> {
     override fun hasNext(): Boolean = this@erasingIterator.isNotEmpty()
 
