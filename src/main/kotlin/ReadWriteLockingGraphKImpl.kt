@@ -1,5 +1,7 @@
 package com.github.sszuev.graphs
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.apache.jena.graph.Capabilities
 import org.apache.jena.graph.Graph
 import org.apache.jena.graph.GraphEventManager
@@ -11,30 +13,21 @@ import org.apache.jena.shared.DeleteDeniedException
 import org.apache.jena.shared.PrefixMapping
 import org.apache.jena.sparql.graph.GraphWrapper
 import org.apache.jena.util.iterator.ExtendedIterator
-import org.apache.jena.util.iterator.NiceIterator
 import org.apache.jena.util.iterator.WrappedIterator
 import java.util.ArrayDeque
-import java.util.Queue
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.stream.Stream
 import kotlin.concurrent.withLock
+import kotlin.coroutines.CoroutineContext
 
-/**
- * Thread-safe [GraphWrapper] which use [Lock]s for synchronization.
- *
- * Note that the method [GraphWrapper.get]
- * and components [TransactionHandler], [Capabilities], [GraphEventManager] are not thread-safe.
- * Complex operation like [org.apache.jena.rdf.model.Model.write] are not thread-safe as well.
- */
-class ReadWriteLockingGraph(
+class ReadWriteLockingGraphKImpl(
     graph: Graph,
+    private val coroutineContext: CoroutineContext,
     private val readLock: Lock,
     private val writeLock: Lock,
     private val iteratorCacheChunkSize: Int,
@@ -44,8 +37,10 @@ class ReadWriteLockingGraph(
         graph: Graph,
         lock: ReadWriteLock = ReentrantReadWriteLock(),
         iteratorCacheChunkSize: Int = 1024,
+        coroutineContext: CoroutineContext = Dispatchers.Default,
     ) : this(
         graph = graph,
+        coroutineContext = coroutineContext,
         readLock = lock.readLock(),
         writeLock = lock.writeLock(),
         iteratorCacheChunkSize = iteratorCacheChunkSize
@@ -106,6 +101,7 @@ class ReadWriteLockingGraph(
     /**
      * Creates a new lazy iterator wrapper.
      */
+    @Suppress("DuplicatedCode")
     private fun remember(source: () -> ExtendedIterator<Triple>): ExtendedIterator<Triple> {
         val id = UUID.randomUUID().toString()
         val res = OuterTriplesIterator(
@@ -126,10 +122,18 @@ class ReadWriteLockingGraph(
 
     private inline fun <X> read(action: () -> X): X = readLock.withLock(action)
 
-    private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
+    // This function should not be used from a coroutine.
+    private fun <X> modify(action: () -> X): X = writeLock.withLock {
+        runBlocking(coroutineContext) {
+            modifyInCoroutine(action)
+        }
+    }
+
+    @Suppress("DuplicatedCode")
+    private inline fun <X> modifyInCoroutine(action: () -> X): X {
         val unstartedIterators = mutableListOf<Lock>()
         val processing = mutableListOf<String>()
-        try {
+        return try {
             openIterators.forEach {
                 if (it.value.started) {
                     processing.add(it.key)
@@ -144,16 +148,8 @@ class ReadWriteLockingGraph(
                     unstartedIterators.add(it.value.lock)
                 }
             }
-            // Replace graph-iterators with snapshots.
-            // We can't just wait for finish iteration,
-            // as someone might not close or not exhaust this inner graph-iterator.
-            // If this a case than performance and memory consumption might be even worse
-            // than for transactional graphs.
-            // Also, we can't use triple-pattern selection,
-            // since even if the modification does not affect the iterated data,
-            // a ConcurrentModificationException can still happen
             while (processing.isNotEmpty()) {
-                val id = processing.removeAt(0)
+                val id = processing.removeFirst()
                 val it = openIterators[id]
                 if (it == null || it.base !is InnerTriplesIterator) { // released on close
                     openIterators.remove(id)
@@ -176,126 +172,5 @@ class ReadWriteLockingGraph(
         } finally {
             unstartedIterators.forEach { it.unlock() }
         }
-    }
-}
-
-/**
- * A wrapper for base graph iterator.
- * Has a reference to the graph through [onClose] operation.
- */
-private class InnerTriplesIterator(
-    val source: () -> ExtendedIterator<Triple>,
-    val cache: Queue<Triple>,
-    val onClose: () -> Unit,
-) : NiceIterator<Triple>() {
-
-    val cacheIterator: Iterator<Triple> = cache.erasingIterator()
-    private var baseIterator: ExtendedIterator<Triple>? = null
-    private var closed = false
-
-    private fun base(): ExtendedIterator<Triple> {
-        if (baseIterator == null) {
-            baseIterator = source()
-        }
-        return checkNotNull(baseIterator)
-    }
-
-    private fun invokeOnClose() {
-        if (closed) {
-            return
-        }
-        onClose()
-        closed = true
-    }
-
-    fun cache(size: Int): Boolean {
-        val base = base()
-        var count = 0
-        while (count++ < size && base.hasNext()) {
-            cache.add(base.next())
-        }
-        return base.hasNext()
-    }
-
-    override fun hasNext(): Boolean = try {
-        if (cacheIterator.hasNext()) {
-            true
-        } else {
-            val res = base().hasNext()
-            if (!res) {
-                onClose()
-            }
-            res
-        }
-    } catch (ex: Exception) {
-        invokeOnClose()
-        throw ex
-    }
-
-    override fun next(): Triple = try {
-        cacheIterator.nextOrNull() ?: base().next()
-    } catch (ex: Exception) {
-        invokeOnClose()
-        throw ex
-    }
-
-    override fun close() {
-        cache.clear()
-        baseIterator?.close()
-        invokeOnClose()
-    }
-
-}
-
-/**
- * An [ExtendedIterator] wrapper for triples that allows to substitute the base iterator.
- * Synchronized by [Lock].
- * Has no reference to the graph when it is released ([base] replaced by snapshot)
- */
-private class OuterTriplesIterator(
-    @Volatile var base: Iterator<Triple>,
-    @Volatile var lock: Lock,
-) : NiceIterator<Triple>() {
-
-    @Volatile
-    var started = false
-
-    override fun hasNext(): Boolean = lock.withLock {
-        started = true
-        base.hasNext()
-    }
-
-    override fun next(): Triple = lock.withLock {
-        started = true
-        base.next()
-    }
-
-    override fun close() = lock.withLock { close(base) }
-}
-
-/**
- * A dummy [Lock] that does nothing.
- * When iterator is realised to snapshot we replace [ReentrantLock] with this one since is no longer needed.
- */
-private object NoOpLock : Lock {
-    override fun lock() {
-    }
-
-    override fun lockInterruptibly() {
-    }
-
-    override fun tryLock(): Boolean {
-        return true
-    }
-
-    override fun tryLock(time: Long, unit: TimeUnit): Boolean {
-        return true
-    }
-
-    override fun unlock() {
-    }
-
-    override fun newCondition(): Condition {
-        throw IllegalStateException()
     }
 }
