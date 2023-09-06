@@ -13,13 +13,16 @@ import java.util.stream.Stream
 
 /**
  * Synchronized [GraphWrapper].
+ * Each operation is synchronized,
+ * each iterator created by the graph is collected into memory immediately after the iterator is created,
+ * so user-code always works with snapshots.
  *
  * Note that method [GraphWrapper.get] is not synchronized.
  * Also, components [TransactionHandler], [Capabilities], [GraphEventManager] are not synchronized.
  *
  * Complex operation like [org.apache.jena.rdf.model.Model.write] are not thread-safe.
  */
-class SynchronizedGraph(graph: Graph, lock: Any? = null) : GraphWrapper(graph), Graph {
+class SimpleSynchronizedGraph(base: Graph, lock: Any? = null) : GraphWrapper(base), ConcurrentGraph {
 
     private val lock: Any
 

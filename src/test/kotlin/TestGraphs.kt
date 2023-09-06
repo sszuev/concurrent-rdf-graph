@@ -71,14 +71,23 @@ internal fun loadGraph(resource: String, factory: () -> Graph, lang: Lang? = Lan
 
 @Suppress("unused")
 enum class TestGraphs {
-    SYNCHRONIZED_GRAPH {
-        override fun createNew(): Graph = SynchronizedGraph(GraphMemFactory.createGraphMem2())
+    SYNCHRONIZED_GRAPH_V1 {
+        override fun createNew(): Graph = SimpleSynchronizedGraph(GraphMemFactory.createGraphMem2())
+    },
+    SYNCHRONIZED_GRAPH_V2 {
+        override fun createNew(): Graph = ExtendedSynchronizedGraph(
+            base = GraphMemFactory.createGraphMem2(),
+            config = ConcurrentGraphConfiguration(
+                iteratorCacheChunkSize = 1024,
+                processOldestFirst = false,
+            ),
+        )
     },
     RW_LOCKING_GRAPH_V1 {
         override fun createNew(): Graph =
             ReadWriteLockingGraph(
-                GraphMemFactory.createGraphMem2(),
-                ReentrantReadWriteLock(),
+                graph = GraphMemFactory.createGraphMem2(),
+                lock = ReentrantReadWriteLock(),
                 config = ConcurrentGraphConfiguration(
                     iteratorCacheChunkSize = 1024,
                     processOldestFirst = false,
