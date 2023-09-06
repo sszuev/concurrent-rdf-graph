@@ -37,18 +37,18 @@ class ReadWriteLockingGraph(
     graph: Graph,
     private val readLock: Lock,
     private val writeLock: Lock,
-    private val iteratorCacheChunkSize: Int,
+    private val config: ConcurrentGraphConfiguration,
 ) : GraphWrapper(graph), Graph {
 
     constructor(
         graph: Graph,
         lock: ReadWriteLock = ReentrantReadWriteLock(),
-        iteratorCacheChunkSize: Int = 1024,
+        config: ConcurrentGraphConfiguration = ConcurrentGraphConfiguration.default,
     ) : this(
         graph = graph,
         readLock = lock.readLock(),
         writeLock = lock.writeLock(),
-        iteratorCacheChunkSize = iteratorCacheChunkSize
+        config = config,
     )
 
     private val openIterators = ConcurrentHashMap<String, OuterTriplesIterator>()
@@ -128,32 +128,40 @@ class ReadWriteLockingGraph(
 
     private inline fun <X> modify(action: () -> X): X = writeLock.withLock {
         val unstartedIterators = mutableListOf<Lock>()
-        val processing = mutableListOf<String>()
+        val processing = mutableListOf<Pair<String, Long>>()
         try {
             openIterators.forEach {
-                if (it.value.started) {
-                    processing.add(it.key)
+                if (it.value.startAt == 0L) {
+                    processing.add(it.key to it.value.startAt)
                     return@forEach
                 }
                 it.value.lock.lock()
-                if (it.value.started) {
+                if (it.value.startAt == 0L) {
                     it.value.lock.unlock()
-                    processing.add(it.key)
+                    processing.add(it.key to it.value.startAt)
                 } else {
                     // If the iterator is not running yet, we run it after modification
                     unstartedIterators.add(it.value.lock)
                 }
             }
+            if (config.processOldestFirst) {
+                processing.sortBy { it.second }
+            }
             // Replace graph-iterators with snapshots.
             // We can't just wait for finish iteration,
-            // as someone might not close or not exhaust this inner graph-iterator.
-            // If this a case than performance and memory consumption might be even worse
-            // than for transactional graphs.
-            // Also, we can't use triple-pattern selection,
+            // as someone might not exhaust its iterator.
+            // If there are many open iterators in a non-exhausted state,
+            // this may lead to performance degradation and increased memory consumption.
+            // Also note, we can't use triple-pattern selection,
             // since even if the modification does not affect the iterated data,
-            // a ConcurrentModificationException can still happen
+            // a ConcurrentModificationException can still happen.
+            // We use an iterator queue for processing, which maybe sorted by age of iterators (depending on the parameter `processOldestFirst`).
+            // This strategy gives the other iterators time to complete their work in their threads while we process the current one.
+            // Collection to the snapshot is also divided on steps (controlled by parameter `chunkSize`) for the same reason,
+            // partially collected iterators could finish their work while the next iterator is processing.
             while (processing.isNotEmpty()) {
-                val id = processing.removeAt(0)
+                val processed = processing.removeAt(0)
+                val id = processed.first
                 val it = openIterators[id]
                 if (it == null || it.base !is InnerTriplesIterator) { // released on close
                     openIterators.remove(id)
@@ -163,12 +171,12 @@ class ReadWriteLockingGraph(
                     val inner = it.base as? InnerTriplesIterator
                     if (inner == null) { // released on close
                         openIterators.remove(id)
-                    } else if (!inner.cache(iteratorCacheChunkSize)) {
+                    } else if (!inner.cache(config.iteratorCacheChunkSize)) {
                         it.base = inner.cacheIterator
                         it.lock = NoOpLock
                         openIterators.remove(id)
                     } else {
-                        processing.add(id)
+                        processing.add(processed)
                     }
                 }
             }
@@ -176,6 +184,15 @@ class ReadWriteLockingGraph(
         } finally {
             unstartedIterators.forEach { it.unlock() }
         }
+    }
+}
+
+data class ConcurrentGraphConfiguration(val iteratorCacheChunkSize: Int, val processOldestFirst: Boolean) {
+    companion object {
+        val default = ConcurrentGraphConfiguration(
+            iteratorCacheChunkSize = 1024,
+            processOldestFirst = false,
+        )
     }
 }
 
@@ -258,26 +275,27 @@ private class OuterTriplesIterator(
 ) : NiceIterator<Triple>() {
 
     @Volatile
-    var started = false
+    var startAt: Long = 0
 
     override fun hasNext(): Boolean = lock.withLock {
-        started = true
+        if (startAt != 0L) startAt = System.currentTimeMillis()
         base.hasNext()
     }
 
     override fun next(): Triple = lock.withLock {
-        started = true
+        if (startAt != 0L) startAt = System.currentTimeMillis()
         base.next()
     }
 
     override fun close() = lock.withLock { close(base) }
+
 }
 
 /**
  * A dummy [Lock] that does nothing.
  * When iterator is realised to snapshot we replace [ReentrantLock] with this one since is no longer needed.
  */
-private object NoOpLock : Lock {
+internal object NoOpLock : Lock {
     override fun lock() {
     }
 

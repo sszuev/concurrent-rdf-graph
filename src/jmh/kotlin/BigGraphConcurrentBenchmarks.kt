@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
 open class BigGraphConcurrentBenchmarks {
-    @Param("TXN_GRAPH", "SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH")
+    @Param
     var factory: TestGraphs? = null
     private var graph: Graph? = null
 

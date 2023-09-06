@@ -74,9 +74,27 @@ enum class TestGraphs {
     SYNCHRONIZED_GRAPH {
         override fun createNew(): Graph = SynchronizedGraph(GraphMemFactory.createGraphMem2())
     },
-    RW_LOCKING_GRAPH {
+    RW_LOCKING_GRAPH_V1 {
         override fun createNew(): Graph =
-            ReadWriteLockingGraph(GraphMemFactory.createGraphMem2(), ReentrantReadWriteLock())
+            ReadWriteLockingGraph(
+                GraphMemFactory.createGraphMem2(),
+                ReentrantReadWriteLock(),
+                config = ConcurrentGraphConfiguration(
+                    iteratorCacheChunkSize = 1024,
+                    processOldestFirst = false,
+                ),
+            )
+    },
+    RW_LOCKING_GRAPH_V2 {
+        override fun createNew(): Graph =
+            ReadWriteLockingGraph(
+                graph = GraphMemFactory.createGraphMem2(),
+                lock = ReentrantReadWriteLock(),
+                config = ConcurrentGraphConfiguration(
+                    iteratorCacheChunkSize = 1024,
+                    processOldestFirst = true
+                ),
+            )
     },
     TXN_GRAPH {
         override fun createNew(): Graph = GraphTxn()

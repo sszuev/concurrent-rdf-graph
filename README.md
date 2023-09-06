@@ -36,7 +36,18 @@ or
 gradlew clean jmhJar
 java -jar build/libs/concurrent-rdf-graph-kotlin-{version}-jmh.jar 
 ```
-For allowed arguments see help (`java -jar build/libs/concurrent-rdf-graph-kotlin-{version}-jmh.jar -help`)
+
+For allowed arguments see help:
+
+```bash
+java -jar build/libs/concurrent-rdf-graph-kotlin-{version}-jmh.jar -help
+```
+
+Example:
+
+```bash
+java -jar build/libs/concurrent-rdf-graph-kotlin-{version}-jmh.jar -wi 3 -i 3 -p factory=RW_LOCKING_GRAPH_V2,SYNCHRONIZED_GRAPH
+```
 
 ## License
 

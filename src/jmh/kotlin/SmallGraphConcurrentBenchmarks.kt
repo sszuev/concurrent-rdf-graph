@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 @State(Scope.Benchmark)
 open class SmallGraphConcurrentBenchmarks {
 
-    @Param("TXN_GRAPH", "SYNCHRONIZED_GRAPH", "RW_LOCKING_GRAPH")
+    @Param
     var factory: TestGraphs? = null
     private var graph: Graph? = null
 
