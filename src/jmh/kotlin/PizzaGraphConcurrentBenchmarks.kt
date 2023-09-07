@@ -20,7 +20,8 @@ import java.util.concurrent.TimeUnit
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
 open class PizzaGraphConcurrentBenchmarks {
-    @Param
+
+    @Param("TXN_GRAPH", "SYNCHRONIZED_GRAPH_V1", "SYNCHRONIZED_GRAPH_V2", "RW_LOCKING_GRAPH_V1", "RW_LOCKING_GRAPH_V2")
     var factory: TestGraphs? = null
     private var graph: Graph? = null
 
@@ -34,26 +35,13 @@ open class PizzaGraphConcurrentBenchmarks {
     }
 
     @Benchmark
-    @Group("CONCURRENT_SCENARIO_A_RW_8x4")
-    fun runScenarioA_RW_8x4(blackhole: Blackhole) {
-        runBenchmarkScenario(
-            graph = checkNotNull(this.graph),
-            blackhole = blackhole,
-            numberOfThreads = 8,
-            innerIterations = 4,
-        ) { g,  b, ti, ii ->
-            pizzaGraph_scenarioA_RW(g, b, ti, ii)
-        }
-    }
-
-    @Benchmark
-    @Group("CONCURRENT_SCENARIO_A_RW_5x5")
-    fun runScenarioA_RW_5x5(blackhole: Blackhole) {
+    @Group("CONCURRENT_SCENARIO_A_RW_5x6")
+    fun runScenarioA_RW_5x6(blackhole: Blackhole) {
         runBenchmarkScenario(
             graph = checkNotNull(this.graph),
             blackhole = blackhole,
             numberOfThreads = 5,
-            innerIterations = 5,
+            innerIterations = 6,
         ) { g,  b, ti, ii ->
             pizzaGraph_scenarioA_RW(g, b, ti, ii)
         }
@@ -73,15 +61,15 @@ open class PizzaGraphConcurrentBenchmarks {
     }
 
     @Benchmark
-    @Group("CONCURRENT_SCENARIO_B_R_8x4")
-    fun runScenarioB_R_8x4(blackhole: Blackhole) {
+    @Group("CONCURRENT_SCENARIO_H_RW_4x8")
+    fun runScenarioH_RW_4x8(blackhole: Blackhole) {
         runBenchmarkScenario(
             graph = checkNotNull(this.graph),
             blackhole = blackhole,
-            numberOfThreads = 8,
-            innerIterations = 4,
+            numberOfThreads = 4,
+            innerIterations = 8,
         ) { g,  b ->
-            pizzaGraph_scenarioB_R(g, b)
+            pizzaGraph_scenarioH_RW(g, b)
         }
     }
 
@@ -93,19 +81,6 @@ open class PizzaGraphConcurrentBenchmarks {
             blackhole = blackhole,
             numberOfThreads = 8,
             innerIterations = 4,
-        ) { g,  b ->
-            scenarioC_RW(g, b)
-        }
-    }
-
-    @Benchmark
-    @Group("CONCURRENT_SCENARIO_C_RW_2x42")
-    fun runScenarioC_RW_2x42(blackhole: Blackhole) {
-        runBenchmarkScenario(
-            graph = checkNotNull(this.graph),
-            blackhole = blackhole,
-            numberOfThreads = 2,
-            innerIterations = 42,
         ) { g,  b ->
             scenarioC_RW(g, b)
         }
@@ -125,8 +100,8 @@ open class PizzaGraphConcurrentBenchmarks {
     }
 
     @Benchmark
-    @Group("CONCURRENT_SCENARIO_DB_RW_6x14")
-    fun runScenarioDB_RW_6x14(blackhole: Blackhole) {
+    @Group("CONCURRENT_SCENARIO_DC_RW_6x14")
+    fun runScenarioDC_RW_6x14(blackhole: Blackhole) {
         runBenchmarkScenario(
             graph = checkNotNull(this.graph),
             blackhole = blackhole,

@@ -81,7 +81,7 @@ open class FunctionalBenchmarks {
     @Benchmark
     @Group("MIXED_OPERATIONS")
     fun runMixedOperations(eraser: Blackhole) {
-        smallGraph_scenarioA_RW(graph!!, eraser, 42_42_42, 42_42)
+        smallGraph_scenarioK_RW(graph!!, eraser, 42_42_42, 42_42)
     }
 }
 

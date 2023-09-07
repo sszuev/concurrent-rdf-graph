@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 @State(Scope.Benchmark)
 open class SmallGraphConcurrentBenchmarks {
 
-    @Param
+    @Param("TXN_GRAPH", "SYNCHRONIZED_GRAPH_V1", "SYNCHRONIZED_GRAPH_V2", "RW_LOCKING_GRAPH_V1", "RW_LOCKING_GRAPH_V2")
     var factory: TestGraphs? = null
     private var graph: Graph? = null
 
@@ -39,18 +39,18 @@ open class SmallGraphConcurrentBenchmarks {
      * 5 threads
      * 5 scenario iterations per thread
      * 6 find operations in iteration
-     * 4 modification operations in iteration (2 add + 2 delete
+     * 4 modification operations in iteration (2 add + 2 delete)
      */
     @Benchmark
-    @Group("CONCURRENT_SCENARIO_A_RW_5x5")
-    fun runScenarioA_RW_5x5(blackhole: Blackhole) {
+    @Group("CONCURRENT_SCENARIO_K_RW_5x5")
+    fun runScenarioK_RW_5x5(blackhole: Blackhole) {
         runBenchmarkScenario(
             graph = checkNotNull(this.graph),
             blackhole = blackhole,
             numberOfThreads = 5,
             innerIterations = 5,
         ) { g, b, ti, ii ->
-            smallGraph_scenarioA_RW(g, b, ti, ii)
+            smallGraph_scenarioK_RW(g, b, ti, ii)
         }
     }
 }

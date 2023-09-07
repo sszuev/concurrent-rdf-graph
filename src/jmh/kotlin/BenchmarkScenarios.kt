@@ -24,7 +24,7 @@ import org.openjdk.jmh.infra.Blackhole
 /**
  * 6 find operations, 4 modification operations (2 add + 2 delete)
  */
-internal fun smallGraph_scenarioA_RW(
+internal fun smallGraph_scenarioK_RW(
     graph: Graph,
     b: Blackhole,
     ti: Int,
@@ -66,7 +66,7 @@ internal fun smallGraph_scenarioA_RW(
     b.consume(res6)
 }
 
-fun pizzaGraph_scenarioA_RW(
+internal fun pizzaGraph_scenarioA_RW(
     graph: Graph,
     b: Blackhole,
     ti: Int,
@@ -335,4 +335,88 @@ fun scenarioG_R(
 
     val x4 = graph.contains(any(), uri("${ns}p21"), any())
     b.consume(x4)
+}
+
+internal fun pizzaGraph_scenarioH_RW(
+    graph: Graph,
+    b: Blackhole,
+) {
+    val ns = "http://www.co-ode.org/ontologies/pizza/pizza.owl#"
+
+    val m = ModelFactory.createModelForGraph(graph)
+
+    val u = m.listStatements(null, OWL2.someValuesFrom, null as RDFNode?)
+        .filterKeep { it.subject.isAnon }
+        .filterKeep { it.subject.hasProperty(RDF.type, OWL2.Restriction) }
+        .toList()
+    b.consume(u)
+
+    check(m.contains(m.createResource(ns + "Siciliana"), null, null as RDFNode?))
+
+    val r = m.listStatements(null, RDFS.subClassOf, null as RDFNode?).toList()
+    b.consume(r)
+
+    checkNotNull(m.listStatements(null, RDF.type, OWL2.Class).first())
+
+    b.consume(m.createResource(ns + "GorgonzolaTopping").getProperty(RDF.type))
+
+    val g = m.listStatements(null, OWL2.differentFrom, null as RDFNode?)
+        .asSequence()
+        .onEach {
+            b.consume(it)
+        }
+        .associateBy { it.subject }
+    b.consume(g)
+
+    m.getResource(ns + "CajunSpiceTopping").addProperty(RDFS.comment, "XXX")
+
+    checkNotNull(
+        m.listStatements(
+            m.createResource(ns + "RocketTopping"),
+            RDFS.subClassOf,
+            m.createResource(ns + "VegetableTopping")
+        ).first()
+    )
+
+    val y = m.listStatements(null, RDFS.subClassOf, null as RDFNode?)
+        .filterKeep { it.`object`.isURIResource }
+        .mapWith { m.listStatements(it.resource, null, null as RDFNode?) }
+        .toList()
+    b.consume(y)
+
+    val f = m.listStatements(null, OWL2.disjointWith, null as RDFNode?)
+        .filterKeep { it.`object`.isURIResource }
+        .filterKeep { it.resource.hasProperty(RDF.type, OWL2.Class) }
+        .toList()
+    b.consume(f)
+
+    m.getResource(ns + "CajunSpiceTopping").removeAll(RDFS.comment)
+
+    val x = m.listStatements(null, null, null as RDFNode?)
+        .filterKeep { it.`object`.isLiteral }
+        .filterKeep { it.literal.language == "pt" }
+        .toList()
+    b.consume(x)
+
+    m.getResource(ns + "Capricciosa").addProperty(RDFS.subClassOf, OWL2.Thing)
+
+    val w = m.listStatements(null, RDF.type, OWL2.Class)
+        .filterKeep { it.subject.isURIResource }
+        .filterKeep { it.subject.hasProperty(RDFS.label) }
+        .toSet()
+    b.consume(w)
+
+    check(!m.contains(m.createResource("X"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
+
+    check(m.contains(m.createResource(ns + "JalapenoPepperTopping"), RDFS.subClassOf, null as RDFNode?))
+
+    check(m.contains(m.createResource(ns + "LeekTopping"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
+
+    m.listStatements(null, null, OWL2.Restriction).forEach {
+        b.consume(it)
+    }
+
+    m.remove(m.getResource(ns + "Capricciosa"), RDFS.subClassOf, OWL2.Thing)
+
+    b.consume(m)
 }
