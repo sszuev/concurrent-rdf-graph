@@ -30,8 +30,10 @@ open class FunctionalBenchmarks {
     @Setup(Level.Invocation)
     fun setup() {
         this.graph = checkNotNull(factory?.createNew()).also { g ->
-            smallGraph.find().forEach {
-                g.add(it)
+            g.transactionWrite {
+                smallGraph.find().forEach {
+                    g.add(it)
+                }
             }
         }
     }
@@ -39,42 +41,42 @@ open class FunctionalBenchmarks {
     @Benchmark
     @Group("ADD")
     fun runAdd(eraser: Blackhole) {
-        graph!!.add(uri("s42"), uri("p24"), uri("o42"))
+        graph!!.transactionWrite { add(uri("s42"), uri("p24"), uri("o42")) }
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("DELETE")
     fun runDelete(eraser: Blackhole) {
-        graph!!.delete(uri("s1"), uri("p1"), uri("o1"))
+        graph!!.transactionWrite { delete(uri("s1"), uri("p1"), uri("o1")) }
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("FIND_ALL")
     fun runFindAll(eraser: Blackhole) {
-        check(graph!!.find().count() == 49L)
+        check(graph!!.transactionRead { find().count() } == 49L)
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("FIND_SOME")
     fun runFindByPredicate(eraser: Blackhole) {
-        check(graph!!.find(any(), uri("p4"), any()).count() == 1L)
+        check(graph!!.transactionRead { find(any(), uri("p4"), any()).count() } == 1L)
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("CONTAINS")
     fun runContains(eraser: Blackhole) {
-        check(graph!!.contains(uri("s42"), uri("p42"), uri("o42")))
+        check(graph!!.transactionRead { contains(uri("s42"), uri("p42"), uri("o42")) })
         eraser.consume(graph)
     }
 
     @Benchmark
     @Group("COUNT")
     fun runSize(eraser: Blackhole) {
-        check(graph!!.size() == 49)
+        check(graph!!.transactionRead { size() } == 49)
         eraser.consume(graph)
     }
 

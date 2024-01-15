@@ -24,11 +24,7 @@ import java.util.stream.Stream
  */
 class SimpleSynchronizedGraph(base: Graph, lock: Any? = null) : GraphWrapper(base), ConcurrentGraph {
 
-    private val lock: Any
-
-    init {
-        this.lock = lock ?: this
-    }
+    private val lock: Any = lock ?: this
 
     @Throws(AddDeniedException::class)
     override fun add(triple: Triple) = synchronized(lock) { get().add(triple) }

@@ -13,11 +13,7 @@ class ExtendedSynchronizedGraph(
     config: ConcurrentGraphConfiguration = ConcurrentGraphConfiguration.default,
 ) : BaseNonBlockingReadGraph(base, config), ConcurrentGraph {
 
-    private val lock: Any
-
-    init {
-        this.lock = lock ?: this
-    }
+    private val lock: Any = lock ?: this
 
     override fun getPrefixMapping(): PrefixMapping = SynchronizedPrefixMapping(get().prefixMapping, lock)
 

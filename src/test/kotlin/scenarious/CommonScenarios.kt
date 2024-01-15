@@ -12,6 +12,8 @@ import com.github.sszuev.graphs.testutils.createTriple
 import com.github.sszuev.graphs.testutils.statements
 import com.github.sszuev.graphs.testutils.threadLocalRandom
 import com.github.sszuev.graphs.testutils.toSet
+import com.github.sszuev.graphs.transactionRead
+import com.github.sszuev.graphs.transactionWrite
 import org.apache.jena.graph.Graph
 import org.apache.jena.graph.Node
 import org.apache.jena.graph.NodeFactory
@@ -21,7 +23,6 @@ import org.apache.jena.vocabulary.OWL
 import org.apache.jena.vocabulary.RDF
 import org.junit.jupiter.api.Assertions
 import java.util.concurrent.ThreadLocalRandom
-import kotlin.streams.toList
 
 private val testSubject = NodeFactory.createURI("https://ex.com#test-subject")
 private val testPredicate = NodeFactory.createURI("https://ex.com#test-predicate")
@@ -29,18 +30,26 @@ private val testObject = NodeFactory.createURI("https://ex.com#test-object")
 
 internal fun scenarioC_modifyAndRead(graph: Graph) {
     smallGraph.find().forEach {
-        graph.add(it)
-        graph.find(it.subject, Node.ANY, Node.ANY).toSet()
-        graph.find(Node.ANY, it.predicate, Node.ANY).toSet()
-        graph.find(Node.ANY, it.predicate, it.`object`).toSet()
+        graph.transactionWrite {
+            graph.add(it)
+        }
+        graph.transactionRead {
+            graph.find(it.subject, Node.ANY, Node.ANY).toSet()
+            graph.find(Node.ANY, it.predicate, Node.ANY).toSet()
+            graph.find(Node.ANY, it.predicate, it.`object`).toSet()
+        }
     }
-    smallGraph.find().forEach {
-        graph.delete(it)
+    graph.transactionWrite {
+        smallGraph.find().forEach {
+            graph.delete(it)
+        }
     }
-    smallGraph.find().forEach {
-        graph.find(it.subject, Node.ANY, it.`object`).toSet()
-        graph.find(it.subject, it.predicate, Node.ANY).toSet()
-        graph.find(Node.ANY, Node.ANY, it.`object`).toSet()
+    graph.transactionRead {
+        smallGraph.find().forEach {
+            graph.find(it.subject, Node.ANY, it.`object`).toSet()
+            graph.find(it.subject, it.predicate, Node.ANY).toSet()
+            graph.find(Node.ANY, Node.ANY, it.`object`).toSet()
+        }
     }
 }
 
@@ -48,30 +57,44 @@ internal fun scenarioF_modifyAndRead(graph: Graph) {
     val ns = "http://ex#"
     val model = ModelFactory.createModelForGraph(graph)
     repeat(2) {
-        repeat(4) { i ->
-            model.statements(ns + "s$i", null, null).filter {
-                it.predicate.uri == ns + "p7"
-            }.count()
+        graph.transactionRead {
+            repeat(4) { i ->
+                model.statements(ns + "s$i", null, null).filter {
+                    it.predicate.uri == ns + "p7"
+                }.count()
+            }
         }
-        val triples = (1..4).map { s ->
-            (1..4).map { p ->
-                (1..4).map { o ->
-                    model.create(ns + "s$s", ns + "y$p", ns + "f$o")
-                }
+        val triples = graph.transactionWrite {
+            (1..4).map { s ->
+                (1..4).map { p ->
+                    (1..4).map { o ->
+                        model.create(ns + "s$s", ns + "y$p", ns + "f$o")
+                    }
+                }.flatten()
             }.flatten()
-        }.flatten()
-        repeat(4) { i ->
-            model.statements(null, ns + "p$i", null).map {
-                it.subject
-            }.count()
         }
-        model.remove(triples)
+        graph.transactionRead {
+            repeat(4) { i ->
+                model.statements(null, ns + "p$i", null).map {
+                    it.subject
+                }.count()
+            }
+        }
+        graph.transactionWrite {
+            model.remove(triples)
+        }
         repeat(4) { s ->
             repeat(4) { p ->
                 repeat(4) { o ->
-                    val t = model.create(ns + "s$s", ns + "y$p", ns + "f$o")
-                    model.statements(ns + "s$s").toList()
-                    model.remove(t)
+                    val t = graph.transactionWrite {
+                        model.create(ns + "s$s", ns + "y$p", ns + "f$o")
+                    }
+                    graph.transactionRead {
+                        model.statements(ns + "s$s").toList()
+                    }
+                    graph.transactionWrite {
+                        model.remove(t)
+                    }
                 }
             }
         }
@@ -88,26 +111,33 @@ internal fun scenarioE_modifyAndRead(
 ) {
     val newTriples = (1..numTriplesToCreate).map {
         scenarioE_read(graph, getTestData(), minSize, maxSize)
-        when (ThreadLocalRandom.current().nextInt(4)) {
-            0 -> createTriple()
-            1 -> createTriple(subject = testSubject)
-            2 -> createTriple(predicate = testPredicate)
-            3 -> createTriple(value = testObject)
-            else -> throw IllegalStateException()
-        }.also {
-            graph.add(it)
+        graph.transactionWrite {
+            when (ThreadLocalRandom.current().nextInt(4)) {
+                0 -> createTriple()
+                1 -> createTriple(subject = testSubject)
+                2 -> createTriple(predicate = testPredicate)
+                3 -> createTriple(value = testObject)
+                else -> throw IllegalStateException()
+            }.also {
+                graph.add(it)
+            }
         }
     }.toMutableList()
 
     repeat(numTriplesToDelete) {
         scenarioE_read(graph, getTestData(), minSize, maxSize)
+
         val t1 = createTriple()
-        graph.remove(t1.subject, t1.predicate, t1.`object`)
+        graph.transactionWrite {
+            graph.remove(t1.subject, t1.predicate, t1.`object`)
+        }
 
         scenarioE_read(graph, getTestData(), minSize, maxSize)
 
         val t2 = newTriples.removeAt(0)
-        graph.delete(t2)
+        graph.transactionWrite {
+            graph.delete(t2)
+        }
     }
     scenarioE_read(graph, getTestData(), minSize, maxSize)
 }
@@ -116,7 +146,7 @@ internal fun scenarioE_modify(
     graph: Graph,
     numTriplesToCreate: Int,
     numTriplesToDelete: Int
-) {
+) = graph.transactionWrite {
     val newTriples = (1..numTriplesToCreate).map {
         when (ThreadLocalRandom.current().nextInt(4)) {
             0 -> createTriple()
@@ -141,8 +171,7 @@ internal fun scenarioE_read(
     testData: ReadOperationsTestData,
     minSize: Int,
     maxSize: Int,
-) {
-
+) = graph.transactionRead {
     assertTrue(graph.size() in minSize..maxSize) { "actual graph size: ${graph.size()}, bounds = [$maxSize .. $maxSize]" }
     val findAllToList = graph.find().toList()
     assertTrue(findAllToList.size in minSize..maxSize) { "findAllCount ${findAllToList.size}, bounds = [$maxSize .. $maxSize]" }
@@ -270,7 +299,7 @@ internal fun scenarioE_read(
 
 internal data class ReadOperationsTestData(val triples: List<Triple>) {
 
-    constructor(graph: Graph) : this(graph.find().toList())
+    constructor(graph: Graph) : this(graph.transactionRead { find().toList() })
 
     val containsTriple1Given: Triple = createTriple()
     val containsTriple1Expected = false

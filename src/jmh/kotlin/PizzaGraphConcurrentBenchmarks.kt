@@ -28,8 +28,10 @@ open class PizzaGraphConcurrentBenchmarks {
     @Setup(Level.Invocation)
     fun setup() {
         this.graph = checkNotNull(factory?.createNew()).also { g ->
-            pizzaGraph.find().forEach {
-                g.add(it)
+            g.transactionWrite {
+                pizzaGraph.find().forEach {
+                    g.add(it)
+                }
             }
         }
     }

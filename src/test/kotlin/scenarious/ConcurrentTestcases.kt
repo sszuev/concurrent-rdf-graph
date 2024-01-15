@@ -2,6 +2,7 @@ package com.github.sszuev.graphs.scenarious
 
 import com.github.sszuev.graphs.testutils.runAll
 import com.github.sszuev.graphs.testutils.threadLocalRandom
+import com.github.sszuev.graphs.transactionRead
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.apache.jena.graph.Graph
 import org.junit.jupiter.api.Assertions
@@ -67,9 +68,9 @@ private fun testEveryTaskModifyAndRead(
         removeCounts.add(deleteCount)
         testData.add(ReadOperationsTestData(graph))
     }
-    val minSize = graph.size()
+    val minSize = graph.transactionRead { size() }
     val maxSize = addCounts.sum() + minSize
-    val expectedFinalSize = addCounts.sum() - removeCounts.sum() + graph.size()
+    val expectedFinalSize = addCounts.sum() - removeCounts.sum() + graph.transactionRead { size() }
     val testDataProvider = { testData.threadLocalRandom() }
 
     runAndWait(
@@ -92,7 +93,7 @@ private fun testEveryTaskModifyAndRead(
             }
         }.toList()
     )
-    Assertions.assertEquals(expectedFinalSize, graph.size())
+    Assertions.assertEquals(expectedFinalSize, graph.transactionRead { size() })
 }
 
 private fun testReadAndWriteTasks(
@@ -113,9 +114,9 @@ private fun testReadAndWriteTasks(
             removeCounts.add(deleteCount)
             testData.add(ReadOperationsTestData(graph))
         }
-    val minSize = graph.size()
+    val minSize = graph.transactionRead { size() }
     val maxSize = addCounts.sum() + minSize
-    val expectedFinalSize = addCounts.sum() - removeCounts.sum() + graph.size()
+    val expectedFinalSize = addCounts.sum() - removeCounts.sum() + graph.transactionRead { size() }
 
     val numberOfFinishedWriteTasks = AtomicLong()
     val hasError = AtomicBoolean(false)
@@ -159,5 +160,7 @@ private fun testReadAndWriteTasks(
         }
     }
     runAndWait(writeTasks + readTasks)
-    Assertions.assertEquals(expectedFinalSize, graph.size())
+    graph.transactionRead {
+        Assertions.assertEquals(expectedFinalSize, size())
+    }
 }

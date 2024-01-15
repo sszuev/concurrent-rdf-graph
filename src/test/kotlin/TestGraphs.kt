@@ -5,9 +5,11 @@ import com.github.sszuev.graphs.testutils.literal
 import com.github.sszuev.graphs.testutils.uri
 import org.apache.jena.graph.Graph
 import org.apache.jena.graph.GraphMemFactory
+import org.apache.jena.query.TxnType
 import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.riot.Lang
 import org.apache.jena.riot.RDFDataMgr
+import org.apache.jena.sparql.core.Transactional
 import org.apache.jena.sparql.graph.GraphFactory
 import org.apache.jena.sparql.graph.GraphTxn
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -66,8 +68,51 @@ internal fun loadGraph(resource: String, factory: () -> Graph, lang: Lang? = Lan
         RDFDataMgr.read(res, it, foundLang)
         return res.graph
     }
-
 }
+
+fun <X> Graph.transactionRead(action: Graph.() -> X): X {
+    try {
+        startRead()
+        return action()
+    } finally {
+        endRead()
+    }
+}
+
+fun <X> Graph.transactionWrite(action: Graph.() -> X): X {
+    try {
+        startWrite()
+        return action()
+    } finally {
+        endWrite()
+    }
+}
+
+private fun Graph.startRead() {
+    if (this is Transactional) {
+        this.begin(TxnType.READ)
+    }
+}
+
+private fun Graph.endRead() {
+    if (this is Transactional) {
+        this.end()
+    }
+}
+
+private fun Graph.startWrite() {
+    if (this is Transactional) {
+        this.begin(TxnType.WRITE)
+    }
+}
+
+private fun Graph.endWrite() {
+    if (this is Transactional) {
+        this.commit()
+        this.end()
+    }
+}
+
 
 @Suppress("unused")
 enum class TestGraphs {
@@ -117,7 +162,9 @@ enum class TestGraphs {
 
     fun createFrom(source: Graph): Graph {
         val res = createNew()
-        source.find().forEach { res.add(it) }
+        res.transactionWrite {
+            source.find().forEach { res.add(it) }
+        }
         return res
     }
 }

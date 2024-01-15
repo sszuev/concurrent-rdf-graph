@@ -28,7 +28,7 @@ internal class SingleThreadGraphTest {
     @EnumSource(TestGraphs::class)
     fun `test non-empty GraphMem (acceptance test)`(factory: TestGraphs) {
         val graph = factory.createFrom(pizzaGraph)
-        val min = graph.size()
+        val min = graph.transactionRead { size() }
         scenarioE_modifyAndRead(
             graph = graph,
             getTestData = { ReadOperationsTestData(graph) },
@@ -44,13 +44,22 @@ internal class SingleThreadGraphTest {
     fun `test ConcurrentModificationException is not thrown for concurrent graphs (acceptance test)`(factory: TestGraphs) {
         val graph = factory.createFrom(pizzaGraph)
         val subject = NodeFactory.createURI("http://www.co-ode.org/ontologies/pizza/pizza.owl#hasTopping")
-        val it = graph.find(Triple.create(subject, Node.ANY, Node.ANY))
-        it.next()
-        it.next()
-        graph.add(Triple.create(NodeFactory.createURI("42"), Node.ANY, Node.ANY))
-        it.next()
-        it.next()
-        graph.add(Triple.create(subject, Node.ANY, Node.ANY))
+        val it = graph.transactionRead {
+            val x = graph.find(Triple.create(subject, Node.ANY, Node.ANY))
+            x.next()
+            x.next()
+            x
+        }
+        graph.transactionWrite {
+            graph.add(Triple.create(NodeFactory.createURI("42"), Node.ANY, Node.ANY))
+        }
+        graph.transactionRead {
+            it.next()
+            it.next()
+        }
+        graph.transactionWrite {
+            graph.add(Triple.create(subject, Node.ANY, Node.ANY))
+        }
         if (factory == TestGraphs.MEM_GRAPH) {
             Assertions.assertThrows(ConcurrentModificationException::class.java) { it.next() }
         } else {

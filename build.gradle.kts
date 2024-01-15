@@ -10,6 +10,7 @@ version = "1.0.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 dependencies {
@@ -91,5 +92,5 @@ tasks.getByName("signMavenPublication") {
 }
 
 kotlin {
-    jvmToolchain(11)
+    jvmToolchain(18)
 }

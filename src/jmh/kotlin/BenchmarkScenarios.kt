@@ -30,38 +30,38 @@ internal fun smallGraph_scenarioK_RW(
     ti: Int,
     ii: Int,
 ) {
-    val res1 = graph.find(uri("s1"), uri("p1"), any()).toList()
+    val res1 = graph.transactionRead { find(uri("s1"), uri("p1"), any()).toList() }
     check(5 == res1.size)
     b.consume(res1)
 
-    val res2 = graph.find(any(), uri("p2"), any()).toList()
+    val res2 = graph.transactionRead { find(any(), uri("p2"), any()).toList() }
     check(3 == res2.size)
     b.consume(res2)
 
     val t1 = Triple.create(uri("s-$ti-$ii"), uri("p-$ti"), literal("x"))
-    graph.add(t1)
+    graph.transactionWrite { add(t1) }
 
-    val res3 = graph.find(any(), uri("p3"), any()).toList()
+    val res3 = graph.transactionWrite { find(any(), uri("p3"), any()).toList() }
     check(2 == res3.size)
     b.consume(res3)
 
     val t2 = Triple.create(bnode(), uri("p-$ti"), bnode())
-    graph.add(t2)
+    graph.transactionWrite { add(t2) }
 
-    val res4 = graph.find().count()
+    val res4 = graph.transactionRead { find().count() }
     check(48L <= res4)
     b.consume(res4)
 
-    graph.delete(t1)
-    graph.delete(t2)
+    graph.transactionWrite { delete(t1) }
+    graph.transactionWrite { delete(t2) }
     b.consume(t1)
     b.consume(t2)
 
-    val res5 = graph.find(uri("s6"), any(), uri("o6")).toList()
+    val res5 = graph.transactionRead { find(uri("s6"), any(), uri("o6")).toList() }
     check(3 == res5.size)
     b.consume(res5)
 
-    val res6 = graph.find(uri("s6"), uri("p6"), uri("o6")).toSet()
+    val res6 = graph.transactionRead { find(uri("s6"), uri("p6"), uri("o6")).toSet() }
     check(1 == res6.size)
     b.consume(res6)
 }
@@ -76,80 +76,96 @@ internal fun pizzaGraph_scenarioA_RW(
 
     val m = ModelFactory.createModelForGraph(graph)
 
-    val x = m.listStatements(null, null, null as RDFNode?).filterKeep { it.`object`.isLiteral }
-        .filterKeep { it.literal.language == "pt" }
-        .toList()
-    check(x.size >= 95)
-    b.consume(x)
+    graph.transactionRead {
+        val x = m.listStatements(null, null, null as RDFNode?).filterKeep { it.`object`.isLiteral }
+            .filterKeep { it.literal.language == "pt" }
+            .toList()
+        check(x.size >= 95)
+        b.consume(x)
 
-    b.consume(m.createResource(ns + "GorgonzolaTopping").getProperty(RDF.type))
+        b.consume(m.createResource(ns + "GorgonzolaTopping").getProperty(RDF.type))
 
-    checkNotNull(
-        m.listStatements(
-            m.createResource(ns + "RocketTopping"),
-            RDFS.subClassOf,
-            m.createResource(ns + "VegetableTopping")
-        ).first()
-    )
+        checkNotNull(
+            m.listStatements(
+                m.createResource(ns + "RocketTopping"),
+                RDFS.subClassOf,
+                m.createResource(ns + "VegetableTopping")
+            ).first()
+        )
+        val y = m.listStatements(null, RDFS.subClassOf, null as RDFNode?)
+            .filterKeep { it.`object`.isURIResource }
+            .mapWith { m.listStatements(it.resource, null, null as RDFNode?) }
+            .toList()
+        check(y.size >= 84)
+        b.consume(y)
 
-    val y = m.listStatements(null, RDFS.subClassOf, null as RDFNode?)
-        .filterKeep { it.`object`.isURIResource }
-        .mapWith { m.listStatements(it.resource, null, null as RDFNode?) }
-        .toList()
-    check(y.size >= 84)
-    b.consume(y)
 
-    check(m.contains(m.createResource(ns + "Siciliana"), null, null as RDFNode?))
-    check(!m.contains(m.createResource("X"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
+        check(m.contains(m.createResource(ns + "Siciliana"), null, null as RDFNode?))
+        check(!m.contains(m.createResource("X"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
 
-    val w = m.listStatements(null, RDF.type, OWL2.Class).filterKeep { it.subject.isURIResource }.toList()
-    check(w.size >= 100)
-    b.consume(w)
+        val w = m.listStatements(null, RDF.type, OWL2.Class).filterKeep { it.subject.isURIResource }.toList()
+        check(w.size >= 100)
+        b.consume(w)
 
-    check(m.contains(m.createResource(ns + "JalapenoPepperTopping"), RDFS.subClassOf, null as RDFNode?))
+        check(m.contains(m.createResource(ns + "JalapenoPepperTopping"), RDFS.subClassOf, null as RDFNode?))
 
-    val j = m.createResource(ns + "MushroomTopping").listProperties().toList()
-    val k = m.createResource("${ns}MushroomTopping-${ti}-${ii}")
-    j.forEach {
-        k.addProperty(it.predicate, it.`object`)
     }
-    b.consume(j)
-    b.consume(k)
+    val k = m.createResource("${ns}MushroomTopping-${ti}-${ii}")
+    graph.transactionWrite {
+        val j = m.createResource(ns + "MushroomTopping").listProperties().toList()
+        j.forEach {
+            k.addProperty(it.predicate, it.`object`)
+        }
+        b.consume(j)
+        b.consume(k)
+    }
 
-    val f = m.listStatements(null, OWL2.disjointWith, null as RDFNode?).toList()
-    check(f.size >= 398)
-    b.consume(f)
+    graph.transactionRead {
+        val f = m.listStatements(null, OWL2.disjointWith, null as RDFNode?).toList()
+        check(f.size >= 398)
+        b.consume(f)
 
-    val g = m.listStatements(null, OWL2.differentFrom, null as RDFNode?)
-        .toList()
-    check(g.size == 0)
-    b.consume(g)
+        val g = m.listStatements(null, OWL2.differentFrom, null as RDFNode?)
+            .toList()
+        check(g.size == 0)
+        b.consume(g)
+    }
 
-    m.remove(k.listProperties())
+    graph.transactionWrite {
+        m.remove(k.listProperties())
+    }
 
-    check(m.contains(m.createResource(ns + "LeekTopping"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
+    graph.transactionRead {
+        check(
+            m.contains(
+                m.createResource(ns + "LeekTopping"),
+                RDFS.subClassOf,
+                m.createResource(ns + "VegetableTopping")
+            )
+        )
 
-    val h = m.listStatements(null, null, OWL2.Restriction).toList()
-    check(h.size == 188)
-    b.consume(h)
+        val h = m.listStatements(null, null, OWL2.Restriction).toList()
+        check(h.size == 188)
+        b.consume(h)
 
-    val u = m.listStatements(null, OWL2.someValuesFrom, null as RDFNode?).toList()
-    check(u.size == 155)
-    b.consume(u)
+        val u = m.listStatements(null, OWL2.someValuesFrom, null as RDFNode?).toList()
+        check(u.size == 155)
+        b.consume(u)
 
-    val r = m.listStatements(null, RDFS.subClassOf, null as RDFNode?).toList()
-    check(r.size >= 259)
-    b.consume(r)
+        val r = m.listStatements(null, RDFS.subClassOf, null as RDFNode?).toList()
+        check(r.size >= 259)
+        b.consume(r)
 
-    checkNotNull(m.listStatements(null, RDF.type, OWL2.Class).first())
+        checkNotNull(m.listStatements(null, RDF.type, OWL2.Class).first())
 
-    b.consume(m)
+        b.consume(m)
+    }
 }
 
 internal fun pizzaGraph_scenarioB_R(
     graph: Graph,
     b: Blackhole,
-) {
+) = graph.transactionRead {
     val ns = "http://www.co-ode.org/ontologies/pizza/pizza.owl#"
 
     val m = ModelFactory.createModelForGraph(graph)
@@ -228,36 +244,42 @@ internal fun scenarioC_RW(
     b: Blackhole,
 ) {
     smallGraph.find().forEach {
-        graph.add(it)
-        b.consume(
-            graph.find(it.subject, Node.ANY, Node.ANY).toSet()
-        )
-        b.consume(
-            graph.find(Node.ANY, it.predicate, Node.ANY).toSet()
-        )
-        b.consume(
-            graph.find(Node.ANY, it.predicate, it.`object`).toSet()
-        )
+        graph.transactionWrite { add(it) }
+        graph.transactionRead {
+            b.consume(
+                graph.find(it.subject, Node.ANY, Node.ANY).toSet()
+            )
+            b.consume(
+                graph.find(Node.ANY, it.predicate, Node.ANY).toSet()
+            )
+            b.consume(
+                graph.find(Node.ANY, it.predicate, it.`object`).toSet()
+            )
+        }
     }
-    smallGraph.find().forEach {
-        graph.delete(it)
+    graph.transactionWrite {
+        smallGraph.find().forEach {
+            graph.delete(it)
+        }
     }
-    smallGraph.find().forEach {
-        b.consume(
-            graph.find(it.subject, Node.ANY, it.`object`).toSet()
-        )
-        b.consume(
-            graph.find(it.subject, it.predicate, Node.ANY).toSet()
-        )
-        b.consume(
-            graph.find(Node.ANY, Node.ANY, it.`object`).toSet()
-        )
+    graph.transactionRead {
+        smallGraph.find().forEach {
+            b.consume(
+                graph.find(it.subject, Node.ANY, it.`object`).toSet()
+            )
+            b.consume(
+                graph.find(it.subject, it.predicate, Node.ANY).toSet()
+            )
+            b.consume(
+                graph.find(Node.ANY, Node.ANY, it.`object`).toSet()
+            )
+        }
     }
 }
 
 fun scenarioD_W(
     graph: Graph,
-) {
+) = graph.transactionWrite {
     smallGraph.find().forEach {
         graph.add(it)
     }
@@ -275,40 +297,52 @@ fun scenarioF_RW(
     val ns = "http://ex#"
     val suffix = "[$ti,$ii]"
     val model = ModelFactory.createModelForGraph(graph)
-    val triple = model.create(ns + "s7", ns + "p13", ns + "${suffix}o")
-    val x1 = model.graph.stream().use { it.limit(4242).filter { t -> t.`object`.uri == ns + "${suffix}o" }.toSet() }
-    model.remove(triple)
+    val triple = graph.transactionWrite { model.create(ns + "s7", ns + "p13", ns + "${suffix}o") }
+    val x1 = graph.transactionRead {
+        model.graph.stream().use { it.limit(4242).filter { t -> t.`object`.uri == ns + "${suffix}o" }.toSet() }
+    }
+    graph.transactionWrite { model.remove(triple) }
     b.consume(x1)
     b.consume(triple)
     repeat(2) {
         repeat(4) { i ->
-            val x2 = model.statements(ns + "s$i", null, null)
-                .filter { it.predicate.uri == ns + "p7" }.count() // 42
+            val x2 = graph.transactionRead {
+                model.statements(ns + "s$i", null, null)
+                    .filter { it.predicate.uri == ns + "p7" }.count() // 42
+            }
             b.consume(x2)
         }
-        val triples = (1..2).map { s ->
-            (1..2).map { p ->
-                (1..2).map { o ->
-                    model.create(ns + "s$s$suffix", ns + "y$p", ns + "f$o")
-                }
+        val triples = graph.transactionWrite {
+            (1..2).map { s ->
+                (1..2).map { p ->
+                    (1..2).map { o ->
+                        model.create(ns + "s$s$suffix", ns + "y$p", ns + "f$o")
+                    }
+                }.flatten()
             }.flatten()
-        }.flatten()
-        repeat(4) { i ->
-            val x3 = model.statements(null, ns + "p$i", null).map { it.subject }.count() // 17640
-            b.consume(x3)
         }
-        repeat(4) { i ->
-            val x4 = model.statements(null, null, ns + "v$i").map { it.subject }.count() // 17640
-            b.consume(x4)
+        graph.transactionRead {
+            repeat(4) { i ->
+                val x3 = model.statements(null, ns + "p$i", null).map { it.subject }.count() // 17640
+                b.consume(x3)
+            }
+            repeat(4) { i ->
+                val x4 = model.statements(null, null, ns + "v$i").map { it.subject }.count() // 17640
+                b.consume(x4)
+            }
         }
-        model.remove(triples)
+        graph.transactionWrite {
+            model.remove(triples)
+        }
         repeat(2) { s ->
             repeat(2) { p ->
                 repeat(2) { o ->
-                    val t = model.create(ns + "s$s", ns + "y$p$suffix", ns + "f$o")
-                    val x5 = model.statements(ns + "s$s").toList() // 1756
+                    val t = graph.transactionWrite { model.create(ns + "s$s", ns + "y$p$suffix", ns + "f$o") }
+                    val x5 = graph.transactionRead { model.statements(ns + "s$s").toList() }// 1756
                     b.consume(x5)
-                    model.remove(t)
+                    graph.transactionWrite {
+                        model.remove(t)
+                    }
                 }
             }
         }
@@ -319,7 +353,7 @@ fun scenarioF_RW(
 fun scenarioG_R(
     graph: Graph,
     b: Blackhole,
-) {
+) = graph.transactionRead {
     val ns = "http://ex#"
     val x1 = graph.stream(uri("${ns}s21"), any(), any())
         .flatMap { graph.stream(any(), any(), it.`object`) }
@@ -345,78 +379,99 @@ internal fun pizzaGraph_scenarioH_RW(
 
     val m = ModelFactory.createModelForGraph(graph)
 
-    val u = m.listStatements(null, OWL2.someValuesFrom, null as RDFNode?)
-        .filterKeep { it.subject.isAnon }
-        .filterKeep { it.subject.hasProperty(RDF.type, OWL2.Restriction) }
-        .toList()
-    b.consume(u)
+    graph.transactionRead {
+        val u = m.listStatements(null, OWL2.someValuesFrom, null as RDFNode?)
+            .filterKeep { it.subject.isAnon }
+            .filterKeep { it.subject.hasProperty(RDF.type, OWL2.Restriction) }
+            .toList()
+        b.consume(u)
 
-    check(m.contains(m.createResource(ns + "Siciliana"), null, null as RDFNode?))
+        check(m.contains(m.createResource(ns + "Siciliana"), null, null as RDFNode?))
 
-    val r = m.listStatements(null, RDFS.subClassOf, null as RDFNode?).toList()
-    b.consume(r)
+        val r = m.listStatements(null, RDFS.subClassOf, null as RDFNode?).toList()
+        b.consume(r)
 
-    checkNotNull(m.listStatements(null, RDF.type, OWL2.Class).first())
+        checkNotNull(m.listStatements(null, RDF.type, OWL2.Class).first())
 
-    b.consume(m.createResource(ns + "GorgonzolaTopping").getProperty(RDF.type))
+        b.consume(m.createResource(ns + "GorgonzolaTopping").getProperty(RDF.type))
 
-    val g = m.listStatements(null, OWL2.differentFrom, null as RDFNode?)
-        .asSequence()
-        .onEach {
-            b.consume(it)
-        }
-        .associateBy { it.subject }
-    b.consume(g)
-
-    m.getResource(ns + "CajunSpiceTopping").addProperty(RDFS.comment, "XXX")
-
-    checkNotNull(
-        m.listStatements(
-            m.createResource(ns + "RocketTopping"),
-            RDFS.subClassOf,
-            m.createResource(ns + "VegetableTopping")
-        ).first()
-    )
-
-    val y = m.listStatements(null, RDFS.subClassOf, null as RDFNode?)
-        .filterKeep { it.`object`.isURIResource }
-        .mapWith { m.listStatements(it.resource, null, null as RDFNode?) }
-        .toList()
-    b.consume(y)
-
-    val f = m.listStatements(null, OWL2.disjointWith, null as RDFNode?)
-        .filterKeep { it.`object`.isURIResource }
-        .filterKeep { it.resource.hasProperty(RDF.type, OWL2.Class) }
-        .toList()
-    b.consume(f)
-
-    m.getResource(ns + "CajunSpiceTopping").removeAll(RDFS.comment)
-
-    val x = m.listStatements(null, null, null as RDFNode?)
-        .filterKeep { it.`object`.isLiteral }
-        .filterKeep { it.literal.language == "pt" }
-        .toList()
-    b.consume(x)
-
-    m.getResource(ns + "Capricciosa").addProperty(RDFS.subClassOf, OWL2.Thing)
-
-    val w = m.listStatements(null, RDF.type, OWL2.Class)
-        .filterKeep { it.subject.isURIResource }
-        .filterKeep { it.subject.hasProperty(RDFS.label) }
-        .toSet()
-    b.consume(w)
-
-    check(!m.contains(m.createResource("X"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
-
-    check(m.contains(m.createResource(ns + "JalapenoPepperTopping"), RDFS.subClassOf, null as RDFNode?))
-
-    check(m.contains(m.createResource(ns + "LeekTopping"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
-
-    m.listStatements(null, null, OWL2.Restriction).forEach {
-        b.consume(it)
+        val g = m.listStatements(null, OWL2.differentFrom, null as RDFNode?)
+            .asSequence()
+            .onEach {
+                b.consume(it)
+            }
+            .associateBy { it.subject }
+        b.consume(g)
     }
 
-    m.remove(m.getResource(ns + "Capricciosa"), RDFS.subClassOf, OWL2.Thing)
+    graph.transactionWrite {
+        m.getResource(ns + "CajunSpiceTopping").addProperty(RDFS.comment, "XXX")
+    }
 
+    graph.transactionRead {
+        checkNotNull(
+            m.listStatements(
+                m.createResource(ns + "RocketTopping"),
+                RDFS.subClassOf,
+                m.createResource(ns + "VegetableTopping")
+            ).first()
+        )
+
+        val y = m.listStatements(null, RDFS.subClassOf, null as RDFNode?)
+            .filterKeep { it.`object`.isURIResource }
+            .mapWith { m.listStatements(it.resource, null, null as RDFNode?) }
+            .toList()
+        b.consume(y)
+
+        val f = m.listStatements(null, OWL2.disjointWith, null as RDFNode?)
+            .filterKeep { it.`object`.isURIResource }
+            .filterKeep { it.resource.hasProperty(RDF.type, OWL2.Class) }
+            .toList()
+        b.consume(f)
+    }
+
+    graph.transactionWrite {
+        m.getResource(ns + "CajunSpiceTopping").removeAll(RDFS.comment)
+    }
+
+    graph.transactionRead {
+        val x = m.listStatements(null, null, null as RDFNode?)
+            .filterKeep { it.`object`.isLiteral }
+            .filterKeep { it.literal.language == "pt" }
+            .toList()
+        b.consume(x)
+    }
+
+    graph.transactionWrite {
+        m.getResource(ns + "Capricciosa").addProperty(RDFS.subClassOf, OWL2.Thing)
+    }
+
+    graph.transactionRead {
+        val w = m.listStatements(null, RDF.type, OWL2.Class)
+            .filterKeep { it.subject.isURIResource }
+            .filterKeep { it.subject.hasProperty(RDFS.label) }
+            .toSet()
+        b.consume(w)
+
+        check(!m.contains(m.createResource("X"), RDFS.subClassOf, m.createResource(ns + "VegetableTopping")))
+
+        check(m.contains(m.createResource(ns + "JalapenoPepperTopping"), RDFS.subClassOf, null as RDFNode?))
+
+        check(
+            m.contains(
+                m.createResource(ns + "LeekTopping"),
+                RDFS.subClassOf,
+                m.createResource(ns + "VegetableTopping")
+            )
+        )
+
+        m.listStatements(null, null, OWL2.Restriction).forEach {
+            b.consume(it)
+        }
+    }
+
+    graph.transactionWrite {
+        m.remove(m.getResource(ns + "Capricciosa"), RDFS.subClassOf, OWL2.Thing)
+    }
     b.consume(m)
 }

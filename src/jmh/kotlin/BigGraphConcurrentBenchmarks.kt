@@ -28,8 +28,10 @@ open class BigGraphConcurrentBenchmarks {
     @Setup(Level.Invocation)
     fun setup() {
         this.graph = checkNotNull(factory?.createNew()).also { g ->
-            bigGraph.find().forEach {
-                g.add(it)
+            g.transactionWrite {
+                bigGraph.find().forEach {
+                    g.add(it)
+                }
             }
         }
     }
@@ -68,7 +70,7 @@ open class BigGraphConcurrentBenchmarks {
             blackhole = blackhole,
             numberOfThreads = 6,
             innerIterations = 21,
-        ) { g, b ->
+        ) { g, _ ->
             scenarioD_W(g)
         }
     }

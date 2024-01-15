@@ -29,8 +29,10 @@ open class SmallGraphConcurrentBenchmarks {
     @Setup(Level.Invocation)
     fun setup() {
         this.graph = checkNotNull(factory?.createNew()).also { g ->
-            smallGraph.find().forEach {
-                g.add(it)
+            g.transactionWrite {
+                smallGraph.find().forEach {
+                    g.add(it)
+                }
             }
         }
     }

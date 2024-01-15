@@ -291,7 +291,7 @@ internal class OuterTriplesIterator(
 
 /**
  * A dummy [Lock] that does nothing.
- * When iterator is realised to snapshot we replace [ReentrantLock] with this one since is no longer needed.
+ * When iterator is realiased to snapshot we replace [ReentrantLock] with this one since is no longer needed.
  */
 internal object NoOpLock : Lock {
     override fun lock() {
