@@ -21,7 +21,14 @@ import java.util.concurrent.TimeUnit
 @State(Scope.Benchmark)
 open class PizzaGraphConcurrentBenchmarks {
 
-    @Param("TXN_GRAPH", "SYNCHRONIZED_GRAPH_V1", "SYNCHRONIZED_GRAPH_V2", "RW_LOCKING_GRAPH_V1", "RW_LOCKING_GRAPH_V2")
+    @Param(
+        "TXN_GRAPH",
+        "SYNCHRONIZED_GRAPH_V1",
+        "SYNCHRONIZED_GRAPH_V2",
+        "RW_LOCKING_GRAPH_V1",
+        "RW_LOCKING_GRAPH_V2",
+        "WRAPPER_TRANSACTIONAL2_GRAPH",
+    )
     var factory: TestGraphs? = null
     private var graph: Graph? = null
 

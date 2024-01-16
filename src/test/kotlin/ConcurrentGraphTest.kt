@@ -48,6 +48,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read many write for empty graph in multithreading`(factory: TestGraphs) {
@@ -68,6 +69,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read many write for empty graph in coroutines`(factory: TestGraphs) {
@@ -88,6 +90,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read many write for non-empty graph in multithreading`(factory: TestGraphs) {
@@ -108,6 +111,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read many write for non-empty graph in coroutines`(factory: TestGraphs) {
@@ -128,6 +132,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read one write for empty graph in multithreading`(factory: TestGraphs) {
@@ -149,6 +154,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read one write for non-empty graph in multithreading`(factory: TestGraphs) {
@@ -170,6 +176,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read few write for empty graph in multithreading`(factory: TestGraphs) {
@@ -191,6 +198,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read few write for non-empty graph in multithreading`(factory: TestGraphs) {
@@ -212,6 +220,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read many write for pizza graph in multithreading, scenarioC`(factory: TestGraphs) {
@@ -232,6 +241,7 @@ internal class ConcurrentGraphTest {
             "RW_LOCKING_GRAPH_V1",
             "RW_LOCKING_GRAPH_V2",
             "TXN_GRAPH",
+            "WRAPPER_TRANSACTIONAL2_GRAPH",
         ]
     )
     fun `test many read many write for big graph in multithreading, scenarioF`(factory: TestGraphs) {

@@ -10,6 +10,7 @@ import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.riot.Lang
 import org.apache.jena.riot.RDFDataMgr
 import org.apache.jena.sparql.core.Transactional
+import org.apache.jena.sparql.core.mem2.GraphWrapperTransactional2
 import org.apache.jena.sparql.graph.GraphFactory
 import org.apache.jena.sparql.graph.GraphTxn
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -109,7 +110,6 @@ private fun Graph.startWrite() {
 private fun Graph.endWrite() {
     if (this is Transactional) {
         this.commit()
-        this.end()
     }
 }
 
@@ -156,6 +156,9 @@ enum class TestGraphs {
     MEM_GRAPH {
         override fun createNew(): Graph = GraphMemFactory.createGraphMem2()
     },
+    WRAPPER_TRANSACTIONAL2_GRAPH {
+        override fun createNew(): Graph = GraphWrapperTransactional2(3)
+    }
     ;
 
     abstract fun createNew(): Graph
