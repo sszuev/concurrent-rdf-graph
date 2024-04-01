@@ -83,11 +83,11 @@ sealed class BaseNonBlockingReadGraph(
 
     override fun dependsOn(other: Graph): Boolean = read { get().dependsOn(other) }
 
-    override fun getTransactionHandler(): TransactionHandler = get().transactionHandler
+    override fun getTransactionHandler(): TransactionHandler = read { get().transactionHandler }
 
-    override fun getCapabilities(): Capabilities = get().capabilities
+    override fun getCapabilities(): Capabilities = read { get().capabilities }
 
-    override fun getEventManager(): GraphEventManager = get().eventManager
+    override fun getEventManager(): GraphEventManager = read { get().eventManager }
 
     abstract override fun getPrefixMapping(): PrefixMapping
 

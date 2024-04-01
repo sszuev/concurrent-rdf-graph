@@ -22,7 +22,7 @@ class ReadWriteLockingGraph(
     base: Graph,
     private val readLock: Lock,
     private val writeLock: Lock,
-    private val config: ConcurrentGraphConfiguration,
+    config: ConcurrentGraphConfiguration,
 ) : BaseNonBlockingReadGraph(base, config), ConcurrentGraph {
 
     constructor(
