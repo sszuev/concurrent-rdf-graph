@@ -10,6 +10,10 @@ import org.apache.jena.sparql.graph.GraphWrapper;
 public class ExtendedSynchronizedGraph extends BaseNonBlockingReadGraph implements ConcurrentGraph {
     private final Object lock;
 
+    public ExtendedSynchronizedGraph(Graph base, ConcurrentGraphConfiguration config) {
+        this(base, null, config);
+    }
+
     public ExtendedSynchronizedGraph(Graph base, Object lock, ConcurrentGraphConfiguration config) {
         super(base, config);
         this.lock = (lock != null) ? lock : this;

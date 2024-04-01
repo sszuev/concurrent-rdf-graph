@@ -30,6 +30,10 @@ import java.util.stream.Stream;
 public class SimpleSynchronizedGraph extends GraphWrapper implements ConcurrentGraph {
     private final Object lock;
 
+    public SimpleSynchronizedGraph(Graph base) {
+        this(base, null);
+    }
+
     public SimpleSynchronizedGraph(Graph base, Object lock) {
         super(base);
         this.lock = lock != null ? lock : this;

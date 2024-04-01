@@ -7,6 +7,7 @@ import org.apache.jena.graph.TransactionHandler;
 import org.apache.jena.shared.PrefixMapping;
 import org.apache.jena.sparql.graph.GraphWrapper;
 
+import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 
@@ -23,14 +24,10 @@ public class ReadWriteLockingGraph extends BaseNonBlockingReadGraph implements C
     private final Lock writeLock;
 
     public ReadWriteLockingGraph(
-            Graph base,
-            Lock readLock,
-            Lock writeLock,
-            ConcurrentGraphConfiguration config
+            Graph graph,
+            ReadWriteLock lock
     ) {
-        super(base, config);
-        this.readLock = readLock;
-        this.writeLock = writeLock;
+        this(graph, lock, ConcurrentGraphConfiguration.DEFAULT);
     }
 
     public ReadWriteLockingGraph(
@@ -38,12 +35,18 @@ public class ReadWriteLockingGraph extends BaseNonBlockingReadGraph implements C
             ReadWriteLock lock,
             ConcurrentGraphConfiguration config
     ) {
-        this(
-                graph,
-                lock.readLock(),
-                lock.writeLock(),
-                config == null ? ConcurrentGraphConfiguration.DEFAULT : config
-        );
+        this(graph, lock.readLock(), lock.writeLock(), config == null ? ConcurrentGraphConfiguration.DEFAULT : config);
+    }
+
+    public ReadWriteLockingGraph(
+            Graph base,
+            Lock readLock,
+            Lock writeLock,
+            ConcurrentGraphConfiguration config
+    ) {
+        super(base, config);
+        this.readLock = Objects.requireNonNull(readLock);
+        this.writeLock = Objects.requireNonNull(writeLock);
     }
 
     @Override
