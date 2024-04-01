@@ -23,6 +23,7 @@ class OuterTriplesIterator extends NiceIterator<Triple> {
 
     @Override
     public boolean hasNext() {
+        Lock lock = this.lock;
         lock.lock();
         try {
             if (startAt != 0L) {
@@ -36,6 +37,7 @@ class OuterTriplesIterator extends NiceIterator<Triple> {
 
     @Override
     public Triple next() {
+        Lock lock = this.lock;
         lock.lock();
         try {
             if (startAt != 0L) {
@@ -49,6 +51,7 @@ class OuterTriplesIterator extends NiceIterator<Triple> {
 
     @Override
     public void close() {
+        Lock lock = this.lock;
         lock.lock();
         try {
             close(base);

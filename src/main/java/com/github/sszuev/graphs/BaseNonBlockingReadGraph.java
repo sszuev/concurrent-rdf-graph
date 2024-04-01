@@ -8,6 +8,7 @@ import org.apache.jena.shared.DeleteDeniedException;
 import org.apache.jena.shared.PrefixMapping;
 import org.apache.jena.sparql.graph.GraphWrapper;
 import org.apache.jena.util.iterator.ExtendedIterator;
+import org.apache.jena.util.iterator.WrappedIterator;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -139,7 +140,19 @@ public abstract class BaseNonBlockingReadGraph extends GraphWrapper implements C
     private ExtendedIterator<Triple> remember(Supplier<ExtendedIterator<Triple>> source) {
         String id = UUID.randomUUID().toString();
         OuterTriplesIterator res = new OuterTriplesIterator(
-                new InnerTriplesIterator(source, new ArrayDeque<>(), () -> openIterators.remove(id)),
+                new InnerTriplesIterator(source, new ArrayDeque<>(), () -> {
+                    OuterTriplesIterator outer = openIterators.remove(id);
+                    if (outer != null) {
+                        Lock lock = outer.lock;
+                        lock.lock();
+                        try {
+                            outer.base = WrappedIterator.emptyIterator();
+                            outer.lock = NoOpLock.INSTANCE;
+                        } finally {
+                            lock.unlock();
+                        }
+                    }
+                }),
                 new ReentrantLock()
         );
         openIterators.put(id, res);
@@ -155,13 +168,14 @@ public abstract class BaseNonBlockingReadGraph extends GraphWrapper implements C
                     processing.add(new Pair<>(id, it.startAt));
                     return;
                 }
-                it.lock.lock();
+                Lock lock = it.lock;
+                lock.lock();
                 if (it.startAt == 0L) {
-                    it.lock.unlock();
+                    lock.unlock();
                     processing.add(new Pair<>(id, it.startAt));
                 } else {
                     // If the iterator is not running yet, we run it after modification
-                    unstartedIterators.add(it.lock);
+                    unstartedIterators.add(lock);
                 }
             });
             if (config.isProcessOldestFirst()) {
@@ -175,16 +189,22 @@ public abstract class BaseNonBlockingReadGraph extends GraphWrapper implements C
                     openIterators.remove(id);
                     continue;
                 }
-                it.lock.lock();
-                InnerTriplesIterator inner = (InnerTriplesIterator) it.base;
-                if (inner == null) { // released on close
-                    openIterators.remove(id);
-                } else if (!inner.cache(config.getIteratorCacheChunkSize())) {
-                    it.base = inner.cacheIterator;
-                    it.lock = NoOpLock.INSTANCE;
-                    openIterators.remove(id);
-                } else {
-                    processing.add(processed);
+                Lock lock = it.lock;
+                lock.lock();
+                try {
+                    InnerTriplesIterator inner =
+                            it.base instanceof InnerTriplesIterator ? (InnerTriplesIterator) it.base : null;
+                    if (inner == null) { // released on close
+                        openIterators.remove(id);
+                    } else if (!inner.cache(config.getIteratorCacheChunkSize())) {
+                        it.base = inner.cacheIterator;
+                        it.lock = NoOpLock.INSTANCE;
+                        openIterators.remove(id);
+                    } else {
+                        processing.add(processed);
+                    }
+                } finally {
+                    lock.unlock();
                 }
             }
             action.run();
