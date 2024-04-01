@@ -1,4 +1,4 @@
-rootProject.name = "concurrent-rdf-graph-kotlin"
+rootProject.name = "concurrent-rdf-graph"
 
 pluginManagement {
     plugins {
