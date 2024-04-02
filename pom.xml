@@ -6,7 +6,7 @@
 
     <groupId>com.github.sszuev</groupId>
     <artifactId>concurrent-rdf-graph</artifactId>
-    <version>1.1.0-java-SNAPSHOT</version>
+    <version>1.1.0-java</version>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
@@ -27,7 +27,7 @@
         <!--https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-jar-plugin-->
         <version.maven-jar-plugin>3.3.0</version.maven-jar-plugin>
         <!--https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-compiler-plugin-->
-        <version.maven-compiler-plugin>3.13.0</version.maven-compiler-plugin>
+        <version.maven-compiler-plugin>3.12.1</version.maven-compiler-plugin>
         <!--https://mvnrepository.com/artifact/org.apache.maven.plugins/maven-surefire-plugin-->
         <version.maven-surefire-plugin>3.2.5</version.maven-surefire-plugin>
     </properties>
